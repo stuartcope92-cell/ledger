@@ -6,12 +6,21 @@ This is the **web** build of the spec (Vite + React + TypeScript + Dexie/Indexed
 
 ## Run it
 
+The Food tab needs the `ledger-api` service running alongside the app (text
+search + barcode work with no API key; see [`ledger-api/README.md`](../ledger-api/README.md)).
+
 ```bash
+# terminal 1
+cd ledger-api && npm install && npm run dev   # http://localhost:3001
+
+# terminal 2
 npm install
-npm run dev
+npm run dev                                    # http://localhost:5173
 ```
 
-Open the printed URL (default http://localhost:5173).
+Open the printed URL (default http://localhost:5173). If the API isn't
+running, the Food tab still loads — search just shows a "couldn't reach the
+food service" message instead of results.
 
 ## Scripts
 
@@ -30,7 +39,7 @@ src/
   seed.ts             Exercise library, routines, cardio types, food seed (§7)
   db.ts               Dexie (IndexedDB) tables + export/import (§4, §10)
   store.ts            Reactive read hooks + mutations over Dexie
-  food/provider.ts    FoodProvider interface + offline provider (§8)
+  services/foodProvider.ts  Client for ledger-api (§8) — copied from ledger-api/src/client
   utils/date.ts       ISO dates + range filtering
   utils/series.ts     Daily trend + per-exercise series aggregation (§6)
   components/         Card, Field, Btn, Ring, LineChart, RestTimer, ProteinSidebar…
@@ -38,9 +47,21 @@ src/
   App.tsx             Shell: header, tabs, protein gauge, bottom nav
 ```
 
-## Swapping in real food services
+## Food data
 
-Everything food-related goes through `FoodProvider` (`src/food/provider.ts`). The default `OfflineFoodProvider` uses the local seed and a mocked photo scan. To go live, implement the same interface against **Open Food Facts** / **Nutritionix** (text) and **LogMeal** / **Foodvisor** (photo), then change the single `foodProvider` export. Keep API keys out of the client — proxy through a serverless function (BUILD_SPEC §8).
+The Food tab talks to `ledger-api` (a sibling folder at `../ledger-api`) via
+`src/services/foodProvider.ts` — a copy of `ledger-api/src/client/foodProvider.ts`,
+unmodified except for reading Vite's `VITE_API_URL` instead of Expo's
+`EXPO_PUBLIC_API_URL` (see comment in that file). Vendor keys (Nutritionix,
+LogMeal/Foodvisor) live only in the API's `.env`, never in this app's bundle.
+
+- `VITE_API_URL` — set in `.env` (defaults to `http://localhost:3001` in code
+  if unset). Testing from a phone or another device on your network: point it
+  at your computer's LAN IP instead, e.g. `VITE_API_URL=http://192.168.1.50:3001`
+  — `localhost` always means the device loading the page.
+- Search debounces 300ms and shows loading/empty/error states.
+- Photo scanning is hidden with a note when the API reports no photo
+  provider configured; manual add is always available as a fallback.
 
 ## Notes
 

@@ -72,16 +72,6 @@ export interface PRRecord {
   date: string;
 }
 
-// Shape produced by any FoodProvider (BUILD_SPEC §8).
-export interface FoodResult {
-  name: string;
-  cal: number;
-  p: number;
-  c: number;
-  f: number;
-  source: MealSource;
-}
-
 // Full export/import payload (BUILD_SPEC §6 "You", §10).
 export interface ExportBundle {
   version: number;
