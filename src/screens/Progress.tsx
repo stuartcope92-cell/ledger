@@ -1,0 +1,246 @@
+// ── Progress tab (home) ────────────────────────────────────────
+import { useMemo, useState } from "react";
+import { Droplet, Footprints, LineChart as LineChartIcon, Trophy } from "lucide-react";
+import { C } from "../theme";
+import { Btn, Card, Ring, Row } from "../components/ui";
+import { LineChart } from "../components/LineChart";
+import { ExerciseProgress } from "./ExerciseProgress";
+import { setsVolume } from "../formulas";
+import { inRange, type RangeKey } from "../utils/date";
+import { average, buildTrendSeries, type TrendMetric } from "../utils/series";
+import { personalRecords } from "../store";
+import type {
+  CardioSession,
+  DailyMisc,
+  Meal,
+  Profile,
+  WeighIn,
+  Workout,
+} from "../types";
+
+const modeLabel: Record<Profile["mode"], string> = {
+  deficit: "cutting",
+  surplus: "bulking",
+  maintain: "maintaining",
+};
+
+// Trend-chart metrics, each with its own theme colour and y-axis unit (§6).
+const TREND_METRICS: { id: TrendMetric; label: string; color: string; unit: string }[] = [
+  { id: "weight", label: "Weight", color: C.body, unit: "kg" },
+  { id: "calories", label: "Calories", color: C.accent, unit: "kcal" },
+  { id: "protein", label: "Protein", color: C.protein, unit: "g" },
+  { id: "cardio", label: "Cardio", color: C.cardio, unit: "kcal" },
+];
+
+export function Progress({
+  profile,
+  workouts,
+  cardio,
+  meals,
+  weighIns,
+  todayMisc,
+  goal,
+  pTarget,
+}: {
+  profile: Profile;
+  workouts: Workout[];
+  cardio: CardioSession[];
+  meals: Meal[];
+  weighIns: WeighIn[];
+  todayMisc: DailyMisc;
+  goal: number;
+  pTarget: number;
+}) {
+  const [range, setRange] = useState<RangeKey>("day");
+  const [metric, setMetric] = useState<TrendMetric>("weight");
+  const [showExercise, setShowExercise] = useState(false);
+
+  const stats = useMemo(() => {
+    const m = inRange(meals, range);
+    const c = inRange(cardio, range);
+    const w = inRange(workouts, range);
+    return {
+      kcalIn: m.reduce((s, x) => s + x.cal, 0),
+      kcalOut: c.reduce((s, x) => s + x.cal, 0),
+      protein: m.reduce((s, x) => s + x.p, 0),
+      carbs: m.reduce((s, x) => s + x.c, 0),
+      fat: m.reduce((s, x) => s + x.f, 0),
+      volume: w.reduce((s, x) => s + setsVolume(x.sets), 0),
+      workoutCount: w.length,
+      cardioCount: c.length,
+    };
+  }, [meals, cardio, workouts, range]);
+
+  const net = stats.kcalIn - stats.kcalOut;
+  const prs = useMemo(() => personalRecords(workouts), [workouts]);
+
+  // Day/Week → 7-day window, Month → 30-day window (§6).
+  const chartDays = range === "month" ? 30 : 7;
+  const active = TREND_METRICS.find((m) => m.id === metric)!;
+  const series = useMemo(
+    () =>
+      buildTrendSeries(metric, chartDays, {
+        weighIns,
+        meals,
+        cardio,
+        fallbackWeight: profile.weightKg,
+      }),
+    [metric, chartDays, weighIns, meals, cardio, profile.weightKg],
+  );
+
+  if (showExercise) {
+    return <ExerciseProgress onBack={() => setShowExercise(false)} />;
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ display: "flex", gap: 6 }}>
+        {(["day", "week", "month"] as RangeKey[]).map((r) => (
+          <Btn
+            key={r}
+            kind={range === r ? "primary" : "ghost"}
+            onClick={() => setRange(r)}
+            style={{ flex: 1, padding: "8px 0", textTransform: "capitalize" }}
+          >
+            {r}
+          </Btn>
+        ))}
+      </div>
+
+      <Card>
+        <div style={{ display: "flex", justifyContent: "space-around" }}>
+          <Ring value={stats.kcalIn} max={goal} color={C.accent} label="Eaten" sub={`/${goal}`} />
+          <Ring value={stats.kcalOut} max={800} color={C.cardio} label="Burned" sub="kcal" />
+          <Ring
+            value={Math.round(stats.protein)}
+            max={pTarget}
+            color={C.protein}
+            label="Protein"
+            sub={`/${pTarget}g`}
+          />
+        </div>
+        <div style={{ textAlign: "center", marginTop: 8, fontSize: 12, color: C.dim }}>
+          Net {net} kcal · {modeLabel[profile.mode]} (target {goal})
+        </div>
+      </Card>
+
+      {/* Trend line chart — the centrepiece (§6). */}
+      <Card>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+          }}
+        >
+          <h3 style={{ margin: 0, fontSize: 15 }}>{active.label} trend</h3>
+          <span style={{ fontSize: 12, color: C.dim }}>
+            last {chartDays} days
+          </span>
+        </div>
+        {series.length > 0 ? (
+          <>
+            <div style={{ display: "flex", gap: 16, marginTop: 4, alignItems: "baseline" }}>
+              <span>
+                <span style={{ fontSize: 22, fontWeight: 700, color: active.color }}>
+                  {series.at(-1)!.v}
+                </span>
+                <span style={{ fontSize: 12, color: C.dim }}> {active.unit} latest</span>
+              </span>
+              <span style={{ fontSize: 12, color: C.dim }}>
+                avg {average(series)} {active.unit}
+              </span>
+            </div>
+            <LineChart points={series} color={active.color} />
+          </>
+        ) : (
+          <p style={{ fontSize: 13, color: C.dim, marginTop: 10 }}>
+            No {active.label.toLowerCase()} data in this window yet — start logging and it'll fill in.
+          </p>
+        )}
+
+        <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+          {TREND_METRICS.map((m) => {
+            const on = metric === m.id;
+            return (
+              <button
+                key={m.id}
+                onClick={() => setMetric(m.id)}
+                aria-pressed={on}
+                style={{
+                  flex: 1,
+                  padding: "8px 0",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  border: `1px solid ${on ? m.color : C.line}`,
+                  background: on ? m.color : C.surface2,
+                  color: on ? C.onAccent : C.text,
+                }}
+              >
+                {m.label}
+              </button>
+            );
+          })}
+        </div>
+      </Card>
+
+      <Btn
+        kind="ghost"
+        onClick={() => setShowExercise(true)}
+        style={{ width: "100%", padding: "12px 0" }}
+      >
+        <LineChartIcon size={16} /> Check exercise progress
+      </Btn>
+
+      <div style={{ display: "flex", gap: 12 }}>
+        <Card style={{ flex: 1, textAlign: "center" }}>
+          <Droplet size={18} color={C.cardio} />
+          <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>
+            {todayMisc.waterGlasses}
+          </div>
+          <span style={{ fontSize: 11, color: C.dim }}>glasses water</span>
+        </Card>
+        <Card style={{ flex: 1, textAlign: "center" }}>
+          <Footprints size={18} color={C.accent} />
+          <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>
+            {todayMisc.steps.toLocaleString()}
+          </div>
+          <span style={{ fontSize: 11, color: C.dim }}>steps</span>
+        </Card>
+      </div>
+
+      <Card>
+        <Row label="Lift volume" val={`${Math.round(stats.volume).toLocaleString()} kg`} />
+        <Row label="Carbs / Fat" val={`${Math.round(stats.carbs)}g · ${Math.round(stats.fat)}g`} />
+        <Row label="Workouts logged" val={stats.workoutCount} />
+        <Row label="Cardio sessions" val={stats.cardioCount} last />
+      </Card>
+
+      {prs.length > 0 && (
+        <Card>
+          <h3
+            style={{
+              margin: "0 0 8px",
+              fontSize: 15,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <Trophy size={16} color={C.accent} /> Personal records
+          </h3>
+          {prs.map((pr, i) => (
+            <Row
+              key={pr.exercise}
+              label={pr.exercise}
+              val={`${pr.estimated1RM} kg est. 1RM`}
+              last={i === prs.length - 1}
+            />
+          ))}
+        </Card>
+      )}
+    </div>
+  );
+}
