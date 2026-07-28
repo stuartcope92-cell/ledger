@@ -4,6 +4,14 @@ A simple, private, on-device gym & nutrition tracker. **No accounts, no server, 
 
 This is the **web** build of the spec (Vite + React + TypeScript + Dexie/IndexedDB), the fallback stack described in BUILD_SPEC §2. All data lives in the browser's IndexedDB and survives reloads; there are no network calls except the (swappable) food provider.
 
+## Try it live
+
+**https://stuartcope92-cell.github.io/ledger/** — deployed from the `gh-pages`
+branch. All five tabs work fully (data persists in your browser's IndexedDB).
+The Food tab's live search needs `ledger-api` running too — see below; without
+it, search just shows a "couldn't reach the food service" message and manual
+add still works.
+
 ## Run it
 
 The Food tab needs the `ledger-api` service running alongside the app (text
