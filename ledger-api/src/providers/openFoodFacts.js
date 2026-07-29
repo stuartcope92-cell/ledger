@@ -45,10 +45,16 @@ function mapProduct(p) {
 export async function searchOFF(query, { pageSize = 20 } = {}) {
   const key = `off:search:${query}:${pageSize}`;
   return cached(key, 1000 * 60 * 60 * 24, async () => {
+    // /api/v2/search?search_terms=... does NOT filter by the query — it
+    // returns OFF's whole catalog (millions of products) sorted by
+    // popularity regardless of what's searched. cgi/search.pl is the
+    // endpoint OFF's own docs point to for free-text search and actually
+    // matches the query.
     const url =
-      `${BASE}/api/v2/search?search_terms=${encodeURIComponent(query)}` +
+      `${BASE}/cgi/search.pl?search_terms=${encodeURIComponent(query)}` +
+      `&search_simple=1&action=process&json=1` +
       `&fields=code,product_name,generic_name,brands,serving_size,serving_quantity,nutriments` +
-      `&sort_by=popularity_key&page_size=${pageSize}`;
+      `&page_size=${pageSize}`;
 
     const res = await fetch(url, { headers: { "User-Agent": UA } });
     if (!res.ok) throw new Error(`OFF search failed: ${res.status}`);
