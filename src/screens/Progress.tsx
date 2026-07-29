@@ -94,19 +94,6 @@ export function Progress({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ display: "flex", gap: 6 }}>
-        {(["day", "week", "month"] as RangeKey[]).map((r) => (
-          <Btn
-            key={r}
-            kind={range === r ? "primary" : "ghost"}
-            onClick={() => setRange(r)}
-            style={{ flex: 1, padding: "8px 0", textTransform: "capitalize" }}
-          >
-            {r}
-          </Btn>
-        ))}
-      </div>
-
       <Card>
         <div style={{ display: "flex", justifyContent: "space-around" }}>
           <Ring value={stats.kcalIn} max={goal} color={C.accent} label="Eaten" sub={`/${goal}`} />
@@ -130,14 +117,37 @@ export function Progress({
           style={{
             display: "flex",
             justifyContent: "space-between",
-            alignItems: "baseline",
+            alignItems: "center",
           }}
         >
           <h3 style={{ margin: 0, fontSize: 15 }}>{active.label} trend</h3>
-          <span style={{ fontSize: 12, color: C.dim }}>
-            last {chartDays} days
-          </span>
+          <div style={{ display: "flex", gap: 3, background: C.surface2, borderRadius: 7, padding: 2 }}>
+            {(["day", "week", "month"] as RangeKey[]).map((r) => {
+              const on = range === r;
+              return (
+                <button
+                  key={r}
+                  onClick={() => setRange(r)}
+                  aria-pressed={on}
+                  style={{
+                    padding: "3px 8px",
+                    borderRadius: 5,
+                    fontSize: 10,
+                    fontWeight: 600,
+                    textTransform: "capitalize",
+                    cursor: "pointer",
+                    border: "none",
+                    background: on ? C.line : "transparent",
+                    color: on ? C.text : C.dim,
+                  }}
+                >
+                  {r}
+                </button>
+              );
+            })}
+          </div>
         </div>
+        <span style={{ fontSize: 11, color: C.dim }}>last {chartDays} days</span>
         {series.length > 0 ? (
           <>
             <div style={{ display: "flex", gap: 16, marginTop: 4, alignItems: "baseline" }}>
