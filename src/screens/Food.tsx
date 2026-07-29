@@ -1,8 +1,9 @@
 // ── Food tab ───────────────────────────────────────────────────
 import { useEffect, useRef, useState } from "react";
-import { Camera, Check, Pencil, Trash2, Utensils, X } from "lucide-react";
+import { Camera, Check, Pencil, ScanBarcode, Trash2, Utensils, X } from "lucide-react";
 import { C } from "../theme";
 import { BackBar, Btn, Card, Empty, Field } from "../components/ui";
+import { BarcodeScanner } from "../components/BarcodeScanner";
 import { apiFoodProvider, scaleToGrams, type FoodResult } from "../services/foodProvider";
 import { addMeal, deleteMeal, useMeals } from "../store";
 import { todayISO } from "../utils/date";
@@ -43,6 +44,10 @@ export function Food({
 
   const [showManual, setShowManual] = useState(false);
   const [manual, setManual] = useState(blankManual);
+
+  const [scanningBarcode, setScanningBarcode] = useState(false);
+  const [barcodeLoading, setBarcodeLoading] = useState(false);
+  const [barcodeError, setBarcodeError] = useState<string | null>(null);
 
   // Portion editor: the item being adjusted before it's saved as a Meal, and
   // which flow it came from (drives the saved Meal's `source`).
@@ -136,6 +141,27 @@ export function Food({
     }
   };
 
+  const handleBarcodeDetected = async (code: string) => {
+    setScanningBarcode(false);
+    setBarcodeLoading(true);
+    setBarcodeError(null);
+    try {
+      const result = await apiFoodProvider.lookupBarcode(code);
+      if (result) {
+        openPortion(result, "search");
+      } else {
+        // lookupBarcode collapses "not found" and "service unreachable" into
+        // the same null — be honest that either is possible rather than
+        // guessing which one happened.
+        setBarcodeError(
+          `No product found for barcode ${code} — or the food service is unreachable. Try search or manual add.`,
+        );
+      }
+    } finally {
+      setBarcodeLoading(false);
+    }
+  };
+
   const saveManual = async () => {
     if (!manual.name.trim()) return;
     await addMeal({
@@ -150,6 +176,12 @@ export function Food({
     setManual(blankManual);
     setShowManual(false);
   };
+
+  if (scanningBarcode) {
+    return (
+      <BarcodeScanner onDetected={handleBarcodeDetected} onCancel={() => setScanningBarcode(false)} />
+    );
+  }
 
   // ── Portion editor: takes over the tab while adjusting a pick ──
   if (portion) {
@@ -232,27 +264,35 @@ export function Food({
       </Card>
 
       <div style={{ display: "flex", gap: 8 }}>
+        <Btn
+          onClick={() => setScanningBarcode(true)}
+          kind="ghost"
+          style={{ flex: 1, padding: "12px 0", fontSize: 13 }}
+          disabled={barcodeLoading}
+        >
+          <ScanBarcode size={16} /> {barcodeLoading ? "Looking up…" : "Barcode"}
+        </Btn>
         <div style={{ flex: 1 }}>
           <Btn
             onClick={startScan}
             kind="ghost"
-            style={{ width: "100%", padding: "12px 0" }}
+            style={{ width: "100%", padding: "12px 0", fontSize: 13 }}
             disabled={scanning || photoStatus !== "available"}
           >
-            <Camera size={16} /> {scanning ? "Analysing…" : "Scan photo"}
+            <Camera size={16} /> {scanning ? "Analysing…" : "Photo"}
           </Btn>
           {photoStatus === "unavailable" && (
             <p style={{ fontSize: 10, color: C.dim, textAlign: "center", marginTop: 4 }}>
-              Photo scanning needs an API key
+              Needs an API key
             </p>
           )}
         </div>
         <Btn
           onClick={() => setShowManual((s) => !s)}
           kind="ghost"
-          style={{ flex: 1, padding: "12px 0" }}
+          style={{ flex: 1, padding: "12px 0", fontSize: 13 }}
         >
-          <Pencil size={16} /> Manual add
+          <Pencil size={16} /> Manual
         </Btn>
         <input
           ref={fileInputRef}
@@ -266,6 +306,9 @@ export function Food({
 
       {scanError && (
         <p style={{ fontSize: 12, color: C.warn, textAlign: "center" }}>{scanError}</p>
+      )}
+      {barcodeError && (
+        <p style={{ fontSize: 12, color: C.warn, textAlign: "center" }}>{barcodeError}</p>
       )}
 
       {/* Photo-recognition candidates — user confirms/adjusts before saving. */}

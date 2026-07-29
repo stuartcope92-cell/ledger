@@ -52,7 +52,7 @@ src/
   utils/series.ts     Daily trend + per-exercise series aggregation (§6)
   utils/image.ts      Client-side compression + Blob<->dataURL for photo export (§6, §10)
   utils/useObjectUrl.ts  Renders a stored Blob as an <img>, no leaks
-  components/         Card, Field, Btn, BudgetBar, LineChart, RestTimer…
+  components/         Card, Field, Btn, BudgetBar, LineChart, RestTimer, BarcodeScanner…
   screens/            Progress, ExerciseProgress, Lift, Cardio, Food, Photos, PhotoCompare, Profile (§6)
   App.tsx             Shell: header, tabs, protein gauge, bottom nav
 ```

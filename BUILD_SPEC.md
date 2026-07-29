@@ -206,6 +206,7 @@ baseMET: Running 9.8, Walking 3.8, Cycling 7.5, Rowing 7.0,
 ### Food
 - Calories-remaining hero + protein remaining + carbs/fat.
 - **Search** against food database (see §8).
+- **Barcode scan** button → live camera scan via the browser's `BarcodeDetector` API (Chrome/Edge) against `GET /api/food/barcode`, with manual barcode-number entry always available too — not just as a fallback for Safari/Firefox (which don't implement `BarcodeDetector`), but as a normal alternative to typing the number straight off the packaging.
 - **Photo scan** button → recognition service (see §8). In prototype this is mocked; wire to real API.
 - Meal list with macros; tap to delete. Manual add fallback.
 
