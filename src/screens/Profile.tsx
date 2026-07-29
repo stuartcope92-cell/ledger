@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { Download, Droplet, Footprints, Upload } from "lucide-react";
 import { C } from "../theme";
 import { Btn, Card, Field, Row, inp } from "../components/ui";
-import { ACTIVITY, bmi } from "../formulas";
+import { ACTIVITY, bmi, proteinTarget } from "../formulas";
 import { buildExport, importBundle } from "../db";
 import { logWeight, setSteps, setWater, useDailyMisc, useWeighIns } from "../store";
 import type { ActivityLevel, GoalMode, Profile as ProfileT } from "../types";
@@ -31,6 +31,7 @@ export function Profile({
   const [msg, setMsg] = useState<string | null>(null);
 
   const bmiVal = bmi(profile.weightKg, profile.heightCm).toFixed(1);
+  const autoProtein = proteinTarget(profile.weightKg);
 
   const exportData = async () => {
     const bundle = await buildExport();
@@ -187,6 +188,36 @@ export function Profile({
           hold this intake 2–3 weeks and watch your weight trend — if it's flat,
           that's your real maintenance. Adjust from there.
         </p>
+
+        <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+            <span style={{ fontSize: 12, color: C.dim }}>Protein goal (g)</span>
+            {profile.proteinGoalG !== undefined && (
+              <button
+                onClick={() => update({ proteinGoalG: undefined })}
+                style={{ background: "none", border: "none", color: C.protein, fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0 }}
+              >
+                Reset to auto
+              </button>
+            )}
+          </div>
+          <input
+            type="number"
+            aria-label="Protein goal in grams"
+            placeholder={`${autoProtein} (auto)`}
+            value={profile.proteinGoalG ?? ""}
+            onChange={(e) => {
+              const v = e.target.value;
+              update({ proteinGoalG: v === "" ? undefined : Math.max(0, +v) });
+            }}
+            style={inp}
+          />
+          <span style={{ fontSize: 11, color: C.dim, display: "block", marginTop: 6 }}>
+            {profile.proteinGoalG !== undefined
+              ? "Custom goal — overrides the 1.8g/kg calculation."
+              : `Auto: 1.8g × ${profile.weightKg}kg = ${autoProtein}g`}
+          </span>
+        </div>
       </Card>
 
       <Card>

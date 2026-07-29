@@ -16,6 +16,7 @@ export interface Profile {
   sex: Sex;
   activity: ActivityLevel;
   mode: GoalMode;
+  proteinGoalG?: number; // manual override; falls back to 1.8g/kg when unset
 }
 
 export interface SetEntry {

@@ -10,7 +10,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { C } from "./theme";
-import { proteinTarget, targetCalories, tdee } from "./formulas";
+import { effectiveProteinTarget, targetCalories, tdee } from "./formulas";
 import { inRange } from "./utils/date";
 import {
   useCardio,
@@ -51,7 +51,7 @@ export default function App() {
 
   const maintenance = tdee(profile);
   const goal = targetCalories(maintenance, profile.mode);
-  const pTarget = proteinTarget(profile.weightKg);
+  const pTarget = effectiveProteinTarget(profile);
 
   // Today's totals — drive the Food remaining figure and the protein gauge.
   const todayStats = useMemo(() => {

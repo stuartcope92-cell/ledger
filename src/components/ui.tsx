@@ -144,56 +144,6 @@ export const Row = ({
   </div>
 );
 
-// SVG progress ring.
-export const Ring = ({
-  value,
-  max,
-  color,
-  label,
-  sub,
-}: {
-  value: number;
-  max: number;
-  color: string;
-  label: string;
-  sub: string;
-}) => {
-  const pct = Math.min(1, max > 0 ? value / max : 0);
-  const r = 42;
-  const circ = 2 * Math.PI * r;
-  return (
-    <div
-      style={{ display: "flex", flexDirection: "column", alignItems: "center" }}
-      role="img"
-      aria-label={`${label}: ${value} ${sub}`}
-    >
-      <svg width={110} height={110}>
-        <circle cx={55} cy={55} r={r} fill="none" stroke={C.line} strokeWidth={9} />
-        <circle
-          cx={55}
-          cy={55}
-          r={r}
-          fill="none"
-          stroke={color}
-          strokeWidth={9}
-          strokeLinecap="round"
-          strokeDasharray={circ}
-          strokeDashoffset={circ * (1 - pct)}
-          transform="rotate(-90 55 55)"
-          style={{ transition: "stroke-dashoffset .5s" }}
-        />
-        <text x={55} y={52} textAnchor="middle" fill={C.text} fontSize={19} fontWeight={700}>
-          {value}
-        </text>
-        <text x={55} y={70} textAnchor="middle" fill={C.dim} fontSize={10}>
-          {sub}
-        </text>
-      </svg>
-      <span style={{ fontSize: 12, color: C.dim, marginTop: 4 }}>{label}</span>
-    </div>
-  );
-};
-
 export const BackBar = ({
   onBack,
   title,

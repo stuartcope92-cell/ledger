@@ -2,7 +2,8 @@
 import { useMemo, useState } from "react";
 import { Droplet, Footprints, LineChart as LineChartIcon, Trophy } from "lucide-react";
 import { C } from "../theme";
-import { Btn, Card, Ring, Row } from "../components/ui";
+import { Btn, Card, Row } from "../components/ui";
+import { CalorieBar, ProteinBar } from "../components/BudgetBar";
 import { LineChart } from "../components/LineChart";
 import { ExerciseProgress } from "./ExerciseProgress";
 import { setsVolume } from "../formulas";
@@ -95,19 +96,11 @@ export function Progress({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <Card>
-        <div style={{ display: "flex", justifyContent: "space-around" }}>
-          <Ring value={stats.kcalIn} max={goal} color={C.accent} label="Eaten" sub={`/${goal}`} />
-          <Ring value={stats.kcalOut} max={800} color={C.cardio} label="Burned" sub="kcal" />
-          <Ring
-            value={Math.round(stats.protein)}
-            max={pTarget}
-            color={C.protein}
-            label="Protein"
-            sub={`/${pTarget}g`}
-          />
-        </div>
-        <div style={{ textAlign: "center", marginTop: 8, fontSize: 12, color: C.dim }}>
-          Net {net} kcal · {modeLabel[profile.mode]} (target {goal})
+        <CalorieBar eaten={stats.kcalIn} burned={stats.kcalOut} goal={goal} />
+        <div style={{ height: 16 }} />
+        <ProteinBar value={Math.round(stats.protein)} goal={pTarget} />
+        <div style={{ textAlign: "center", marginTop: 10, fontSize: 12, color: C.dim }}>
+          {modeLabel[profile.mode]} · net {net} kcal
         </div>
       </Card>
 

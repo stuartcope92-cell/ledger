@@ -64,6 +64,7 @@ interface Profile {
   sex: Sex;
   activity: ActivityLevel;
   mode: GoalMode;
+  proteinGoalG?: number;     // manual override; falls back to 1.8g/kg when unset
 }
 
 interface SetEntry { weight: number; reps: number; }          // weight in kg
@@ -154,7 +155,7 @@ baseMET: Running 9.8, Walking 3.8, Cycling 7.5, Rowing 7.0,
 
 ### Progress (home)
 - Day / Week / Month range toggle. Drives the x-axis window of the trend chart: Day → last 7 days, Week → last 7 days, Month → last 30 days. (Also drives any date-scoped queries.)
-- Three rings: Eaten (vs target), Burned, Protein (vs target).
+- Calorie budget bar: full length = daily target. Eaten fills it from the left; burned carves a same-width notch out of the tail of that fill (cardio colour) rather than just adjusting a number. Fill (and the "left"/"over" caption) turns warn-red if eaten minus burned still exceeds target. A separate protein bar below fills toward the protein goal (§4, §5 — user-overridable in the You tab, else 1.8g/kg).
 - Net calories line + current mode label (cutting / maintaining / bulking).
 - **Trend line chart** — the centrepiece. Days on the x-axis, amount on the y-axis. A **metric toggle** below the chart switches the plotted series between four options:
   - **Body weight** (kg) — default, from weigh-ins.
@@ -208,6 +209,7 @@ baseMET: Running 9.8, Walking 3.8, Cycling 7.5, Rowing 7.0,
 ### You (profile)
 - Name, age, height, weight, sex, activity level.
 - Maintenance (TDEE) display + Deficit/Maintain/Surplus toggle + resulting daily target + the accuracy note.
+- **Protein goal override**: numeric field, blank = auto (1.8g/kg, live-updates with weight); entering a value pins it and flows into the Progress bar/Food remaining/sidebar gauge everywhere; "Reset to auto" clears it.
 - Water stepper, steps input.
 - BMI, weigh-in count, "Log today's weight" button.
 - **Export all data (JSON)** and — add for production — **Import** to restore. Progress photos are included (base64-encoded), so a backup is genuinely complete.

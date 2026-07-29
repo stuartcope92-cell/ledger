@@ -40,6 +40,11 @@ export function targetCalories(maintenance: number, mode: GoalMode): number {
 export const proteinTarget = (weightKg: number): number =>
   Math.round(weightKg * 1.8);
 
+// The protein target actually used app-wide: a manual goal from the You tab
+// when set, else the 1.8g/kg calculation.
+export const effectiveProteinTarget = (profile: Profile): number =>
+  profile.proteinGoalG ?? proteinTarget(profile.weightKg);
+
 // Cardio calories — MET method.
 export function cardioCalories({
   type,
