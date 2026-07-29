@@ -1,4 +1,4 @@
-// ── App shell: header, tabs, protein sidebar, bottom nav ───────
+// ── App shell: header, tabs, bottom nav ─────────────────────────
 import { useMemo, useState } from "react";
 import {
   Dumbbell,
@@ -20,7 +20,6 @@ import {
   useWeighIns,
   useWorkouts,
 } from "./store";
-import { ProteinSidebar } from "./components/ProteinSidebar";
 import { Progress } from "./screens/Progress";
 import { Lift } from "./screens/Lift";
 import { Cardio } from "./screens/Cardio";
@@ -95,9 +94,7 @@ export default function App() {
         <span style={{ fontSize: 13, color: C.dim }}>{today}</span>
       </header>
 
-      <ProteinSidebar value={Math.round(todayStats.protein)} target={pTarget} />
-
-      <main style={{ padding: "8px 44px 8px 18px" }}>
+      <main style={{ padding: "8px 18px" }}>
         {tab === "home" && (
           <Progress
             profile={profile}

@@ -45,7 +45,7 @@ warn      #F0698A  (over-target / destructive)
 - Font: system default (San Francisco / Roboto). Display sizes 22–34px bold; body 14–15px; captions 10–12px in `dim`.
 - Cards: `surface` bg, 1px `line` border, 16px radius, 16px padding.
 - Rounded, generous tap targets (min 44px). Respect reduced-motion and provide visible focus states.
-- Protein target renders as a persistent vertical gauge fixed to the right edge, visible across all tabs.
+- Protein progress renders as a fill bar on the Progress tab (§6), not a persistent cross-tab gauge.
 
 ---
 
