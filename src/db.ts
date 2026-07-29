@@ -10,10 +10,11 @@ import type {
   Meal,
   Profile,
   ProgressPhoto,
+  Routine,
   WeighIn,
   Workout,
 } from "./types";
-import { DEFAULT_PROFILE } from "./seed";
+import { DEFAULT_PROFILE, TEMPLATES } from "./seed";
 import { blobToDataUrl, dataUrlToBlob } from "./utils/image";
 
 interface SettingRow {
@@ -29,6 +30,7 @@ class LedgerDB extends Dexie {
   dailyMisc!: Table<DailyMisc, string>;
   settings!: Table<SettingRow, string>;
   progressPhotos!: Table<ProgressPhoto, string>;
+  routines!: Table<Routine, string>;
 
   constructor() {
     super("ledger");
@@ -42,6 +44,9 @@ class LedgerDB extends Dexie {
     });
     this.version(2).stores({
       progressPhotos: "id, date",
+    });
+    this.version(3).stores({
+      routines: "id, name",
     });
   }
 }
@@ -69,9 +74,22 @@ export async function saveDailyMisc(row: DailyMisc): Promise<void> {
   await db.dailyMisc.put(row);
 }
 
+// Seed the built-in Push/Pull/Leg Day routines once, only if the user has
+// none yet (fresh install, or upgrading from before routines existed).
+export async function ensureDefaultRoutines(): Promise<void> {
+  const count = await db.routines.count();
+  if (count > 0) return;
+  const seeds: Routine[] = Object.entries(TEMPLATES).map(([name, exercises]) => ({
+    id: `seed-${name.toLowerCase().replace(/\s+/g, "-")}`,
+    name,
+    exercises,
+  }));
+  await db.routines.bulkAdd(seeds);
+}
+
 // ── Export / Import (BUILD_SPEC §10) ───────────────────────────
 export async function buildExport(): Promise<ExportBundle> {
-  const [profile, workouts, cardio, meals, weighIns, dailyMisc, photos] =
+  const [profile, workouts, cardio, meals, weighIns, dailyMisc, photos, routines] =
     await Promise.all([
       getProfile(),
       db.workouts.toArray(),
@@ -80,6 +98,7 @@ export async function buildExport(): Promise<ExportBundle> {
       db.weighIns.toArray(),
       db.dailyMisc.toArray(),
       db.progressPhotos.toArray(),
+      db.routines.toArray(),
     ]);
   const progressPhotos: ExportedPhoto[] = await Promise.all(
     photos.map(async (p) => ({
@@ -91,7 +110,7 @@ export async function buildExport(): Promise<ExportBundle> {
     })),
   );
   return {
-    version: 2,
+    version: 3,
     exportedAt: new Date().toISOString(),
     profile,
     workouts,
@@ -100,6 +119,7 @@ export async function buildExport(): Promise<ExportBundle> {
     weighIns,
     dailyMisc,
     progressPhotos,
+    routines,
   };
 }
 
@@ -127,6 +147,7 @@ export async function importBundle(bundle: ExportBundle): Promise<void> {
       db.dailyMisc,
       db.settings,
       db.progressPhotos,
+      db.routines,
     ],
     async () => {
       await Promise.all([
@@ -136,6 +157,7 @@ export async function importBundle(bundle: ExportBundle): Promise<void> {
         db.weighIns.clear(),
         db.dailyMisc.clear(),
         db.progressPhotos.clear(),
+        db.routines.clear(),
       ]);
       await Promise.all([
         db.workouts.bulkAdd(bundle.workouts ?? []),
@@ -144,6 +166,7 @@ export async function importBundle(bundle: ExportBundle): Promise<void> {
         db.weighIns.bulkAdd(bundle.weighIns ?? []),
         db.dailyMisc.bulkAdd(bundle.dailyMisc ?? []),
         db.progressPhotos.bulkAdd(photos),
+        db.routines.bulkAdd(bundle.routines ?? []),
         saveProfile(bundle.profile),
       ]);
     },

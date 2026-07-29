@@ -76,6 +76,14 @@ interface Workout {
   isPR?: boolean;
 }
 
+// Exercise list only — no weight/reps/sets. Those are entered per exercise
+// during a session (see §6 Lift), never stored on the routine.
+interface Routine {
+  id: string;
+  name: string;
+  exercises: string[];
+}
+
 interface CardioSession {
   id: string;
   date: string;
@@ -181,7 +189,10 @@ baseMET: Running 9.8, Walking 3.8, Cycling 7.5, Rowing 7.0,
 
 ### Lift
 - "Log exercise" primary action.
-- **Quick routines:** Push / Pull / Leg Day templates load a preset list of exercises in one tap (see §7).
+- **Routines:** user-created and named, holding only an ordered exercise list — no weight/reps/sets on the routine itself; those are entered per exercise during a session. Push/Pull/Leg Day (§7) are seeded once on first run as ordinary, deletable/user-editable-equivalent routines, not a separate hardcoded tier.
+  - **New routine:** name + exercise picker (library search toggles ∪ free-text custom), selected list shown as removable chips, in the order added.
+  - **Start a routine → session:** a checklist of that routine's exercises. Tapping one opens the normal add flow pre-filled with that exercise name (search/custom/rest timer/overload hint all still available — the prefill is just a starting point, not a lock). Saving returns to the checklist rather than to the idle Lift screen, so the user can work through the rest of the list. "Done" is derived from today's actual logged workouts (not a per-visit flag), so leaving and re-entering the same session still shows what's already been done today.
+  - Delete a routine independently of any workouts already logged from it — routines and workouts aren't linked records.
 - Add flow: searchable exercise library (20 seed exercises) **plus** free-text custom exercise. Multi-set editor (add/remove sets; weight + reps each).
 - **Rest timer** inside the add flow: 60/90/120s presets, play/pause/reset.
 - **Progressive-overload hint:** when logging an exercise done before, show last session's sets to beat.
@@ -220,7 +231,7 @@ baseMET: Running 9.8, Walking 3.8, Cycling 7.5, Rowing 7.0,
 
 **Exercise library (20):** Bench Press, Incline Bench Press, Squat, Deadlift, Overhead Press, Barbell Row, Pull-Up, Lat Pulldown, Bicep Curl, Tricep Extension, Leg Press, Leg Curl, Leg Extension, Calf Raise, Lateral Raise, Dumbbell Fly, Romanian Deadlift, Hip Thrust, Face Pull, Plank.
 
-**Routine templates:**
+**Default routines** (seeded once into the routines table if it's empty — fresh install or upgrade — then just ordinary user-editable-equivalent routines, see §6 Lift):
 - Push Day → Bench Press, Overhead Press, Incline Bench Press, Lateral Raise, Tricep Extension
 - Pull Day → Deadlift, Pull-Up, Barbell Row, Lat Pulldown, Bicep Curl
 - Leg Day → Squat, Romanian Deadlift, Leg Press, Leg Curl, Calf Raise

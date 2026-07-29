@@ -1,5 +1,5 @@
 // ── App shell: header, tabs, bottom nav ─────────────────────────
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Dumbbell,
   Heart,
@@ -10,6 +10,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { C } from "./theme";
+import { ensureDefaultRoutines } from "./db";
 import { effectiveProteinTarget, targetCalories, tdee } from "./formulas";
 import { inRange } from "./utils/date";
 import {
@@ -41,6 +42,10 @@ const NAV: { id: TabId; icon: LucideIcon; label: string }[] = [
 export default function App() {
   const [tab, setTab] = useState<TabId>("home");
   const [profile, updateProfile] = useProfile();
+
+  useEffect(() => {
+    void ensureDefaultRoutines();
+  }, []);
 
   const workouts = useWorkouts();
   const cardio = useCardio();

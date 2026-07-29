@@ -32,6 +32,14 @@ export interface Workout {
   isPR?: boolean;
 }
 
+// A named, reusable list of exercises — no weight/reps/sets. Those are
+// entered per exercise during a logging session, not stored on the routine.
+export interface Routine {
+  id: string;
+  name: string;
+  exercises: string[];
+}
+
 export interface CardioSession {
   id: string;
   date: string; // ISO yyyy-mm-dd
@@ -102,4 +110,5 @@ export interface ExportBundle {
   weighIns: WeighIn[];
   dailyMisc: DailyMisc[];
   progressPhotos: ExportedPhoto[];
+  routines: Routine[];
 }

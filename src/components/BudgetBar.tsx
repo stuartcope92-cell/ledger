@@ -43,6 +43,10 @@ export function CalorieBar({
           overflow: "hidden",
         }}
       >
+        {/* Both segments are flush rectangles — the track's own overflow:
+            hidden + border-radius rounds the outer ends, so the seam between
+            eaten and burned stays a single clean edge instead of two
+            independently-rounded pills butting against each other. */}
         <div
           style={{
             position: "absolute",
@@ -51,7 +55,6 @@ export function CalorieBar({
             bottom: 0,
             width: `${netPct * 100}%`,
             background: over ? C.warn : C.accent,
-            borderRadius: 8,
             transition: "width .4s ease",
           }}
         />

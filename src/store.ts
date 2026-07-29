@@ -18,6 +18,7 @@ import type {
   PRRecord,
   Profile,
   ProgressPhoto,
+  Routine,
   SetEntry,
   Workout,
 } from "./types";
@@ -55,6 +56,9 @@ export const useWeighIns = () =>
 export const useProgressPhotos = (): ProgressPhoto[] =>
   useLiveQuery(() => db.progressPhotos.orderBy("date").reverse().toArray(), [], []) ?? [];
 
+export const useRoutines = (): Routine[] =>
+  useLiveQuery(() => db.routines.orderBy("name").toArray(), [], []) ?? [];
+
 export function useDailyMisc(date: string = todayISO()): DailyMisc {
   return (
     useLiveQuery(() => getDailyMisc(date), [date], {
@@ -82,22 +86,14 @@ export async function addWorkout(
   return isPR;
 }
 
-// Load a routine template as one workout row per exercise (empty starter set).
-export async function loadTemplate(
-  exercises: string[],
-  date: string = todayISO(),
-): Promise<void> {
-  const rows: Workout[] = exercises.map((name) => ({
-    id: uid(),
-    name,
-    sets: [{ weight: 20, reps: 10 }],
-    date,
-    isPR: false,
-  }));
-  await db.workouts.bulkAdd(rows);
-}
-
 export const deleteWorkout = (id: string) => db.workouts.delete(id);
+
+// Routines hold exercise names only — weight/reps/sets are logged per
+// exercise during a session, never pre-filled.
+export async function addRoutine(name: string, exercises: string[]): Promise<void> {
+  await db.routines.add({ id: uid(), name, exercises });
+}
+export const deleteRoutine = (id: string) => db.routines.delete(id);
 
 export async function addCardio(
   session: Omit<CardioSession, "id">,
