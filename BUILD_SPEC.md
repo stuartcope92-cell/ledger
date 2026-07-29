@@ -26,6 +26,8 @@ A simple, no-fuss gym & nutrition tracker. **No social features, no accounts, no
 
 If the target is a **web app instead of native**, swap to Vite + React + TypeScript, Dexie.js (IndexedDB) for persistence, and keep everything else.
 
+**Installable (web build):** a manifest + minimal offline-app-shell service worker (`public/manifest.webmanifest`, `public/sw.js`, registered from `main.tsx`) makes the web build "Add to Home Screen"-able with its own icon, and lets the shell load offline after a first visit. No server, no account — purely a packaging change. The service worker only registers in production builds (`import.meta.env.PROD`); it deliberately doesn't run under `vite dev`, since caching responses fights Vite's HMR.
+
 ---
 
 ## 3. Design System
@@ -196,19 +198,19 @@ baseMET: Running 9.8, Walking 3.8, Cycling 7.5, Rowing 7.0,
 - Add flow: searchable exercise library (20 seed exercises) **plus** free-text custom exercise. Multi-set editor (add/remove sets; weight + reps each).
 - **Rest timer** inside the add flow: 60/90/120s presets, play/pause/reset.
 - **Progressive-overload hint:** when logging an exercise done before, show last session's sets to beat.
-- Saved workouts list with PR badge; swipe/tap to delete.
+- Saved workouts list with PR badge; **tap an entry to edit it in place** (same add-flow form, pre-filled — fixing a typo'd weight doesn't mean delete-and-redo; the original date is preserved and PR status re-derives against every other session of that exercise), swipe/tap delete icon to remove.
 
 ### Cardio
 - Activity type chips, duration, pace, incline inputs.
 - Live estimated calorie burn (recomputes on input change) using bodyweight from profile.
-- Session history with per-entry calories.
+- Session history with per-entry calories; **tap an entry to edit it in place** (same form, pre-filled, calories recomputed live; original date preserved), delete icon to remove.
 
 ### Food
 - Calories-remaining hero + protein remaining + carbs/fat.
-- **Search** against food database (see §8).
+- **Search** against food database (see §8). A **Recent** shelf above search shows distinct recently-logged foods (newest first, capped ~8) so a repeat meal never needs re-searching — tap to open the same portion editor pre-filled with its last-logged macros.
 - **Barcode scan** button → live camera scan via the browser's `BarcodeDetector` API (Chrome/Edge) against `GET /api/food/barcode`, with manual barcode-number entry always available too — not just as a fallback for Safari/Firefox (which don't implement `BarcodeDetector`), but as a normal alternative to typing the number straight off the packaging.
 - **Photo scan** button → recognition service (see §8). In prototype this is mocked; wire to real API.
-- Meal list with macros; tap to delete. Manual add fallback.
+- Meal list with macros; **tap an entry to edit it in place** (name/cal/p/c/f via the manual-add form, pre-filled; original date and source preserved), delete icon to remove. Manual add fallback for anything not found by search/barcode/photo.
 
 ### Photos
 - **Take or upload** a progress photo (file input; `capture="environment"` for the camera path, plain file picker for upload — covers both without separate native APIs).
@@ -225,6 +227,7 @@ baseMET: Running 9.8, Walking 3.8, Cycling 7.5, Rowing 7.0,
 - Water stepper, steps input.
 - BMI, weigh-in count, "Log today's weight" button.
 - **Export all data (JSON)** and — add for production — **Import** to restore. Progress photos are included (base64-encoded), so a backup is genuinely complete.
+- **Export CSV**: separate, clean per-entity downloads (weigh-ins, meals, workouts — one row per set, cardio) for opening in a spreadsheet — deliberately not one mixed-schema file, and not a restore path (that's what JSON export/import is for).
 
 ---
 
@@ -285,7 +288,9 @@ Keep API keys in environment config, never in the client bundle for a shipped ap
 
 - All six tabs functional; data survives app restart.
 - TDEE/target/protein update instantly when profile changes and flow into Food + Progress.
-- Logging a lift/meal/cardio is ≤3 taps.
-- Food search works offline via seed; real API behind a swappable provider.
-- Export produces valid JSON that Import restores exactly.
+- Logging a lift/meal/cardio is ≤3 taps — including a repeat meal (Recent shelf) and a routine exercise (session queue).
+- Food search resilient to the upstream provider having a bad moment (staples fallback + retry + no long-lived empty cache), behind a swappable `FoodProvider`.
+- Meals, workouts, and cardio sessions can be edited in place, not just deleted and re-added.
+- Export produces valid JSON that Import restores exactly; CSV export covers the common "open it in a spreadsheet" case separately.
+- Web build installs to a home screen and its shell loads offline after a first visit.
 - No account, no network calls except the food provider, no analytics/tracking.

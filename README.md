@@ -7,10 +7,11 @@ This is the **web** build of the spec (Vite + React + TypeScript + Dexie/Indexed
 ## Try it live
 
 **https://stuartcope92-cell.github.io/ledger/** — deployed from the `gh-pages`
-branch. All five tabs work fully (data persists in your browser's IndexedDB).
+branch. All six tabs work fully (data persists in your browser's IndexedDB),
+and it's installable ("Add to Home Screen") with an offline app shell.
 The Food tab's live search needs `ledger-api` running too — see below; without
-it, search just shows a "couldn't reach the food service" message and manual
-add still works.
+it, search still works for common terms via a small built-in staples list,
+and manual add is always available.
 
 ## Run it
 
@@ -44,7 +45,7 @@ src/
   theme.ts            Design tokens (BUILD_SPEC §3)
   types.ts            Data model (§4)
   formulas.ts         BMR / TDEE / MET / 1RM math (§5) — implemented exactly
-  seed.ts             Exercise library, routines, cardio types, food seed (§7)
+  seed.ts             Exercise library, routine templates, cardio types (§7)
   db.ts               Dexie (IndexedDB) tables + export/import (§4, §10)
   store.ts            Reactive read hooks + mutations over Dexie
   services/foodProvider.ts  Client for ledger-api (§8) — copied from ledger-api/src/client
@@ -52,10 +53,15 @@ src/
   utils/series.ts     Daily trend + per-exercise series aggregation (§6)
   utils/image.ts      Client-side compression + Blob<->dataURL for photo export (§6, §10)
   utils/useObjectUrl.ts  Renders a stored Blob as an <img>, no leaks
+  utils/csv.ts        Per-entity CSV export (§6 You)
   components/         Card, Field, Btn, BudgetBar, LineChart, RestTimer, BarcodeScanner…
   screens/            Progress, ExerciseProgress, Lift, Cardio, Food, Photos, PhotoCompare, Profile (§6)
-  App.tsx             Shell: header, tabs, protein gauge, bottom nav
+  App.tsx             Shell: header, tabs, bottom nav
 ```
+
+`public/manifest.webmanifest` + `public/sw.js` (registered from `main.tsx`,
+production builds only) make the app installable with an offline shell — see
+BUILD_SPEC §2.
 
 ## Food data
 
@@ -69,11 +75,19 @@ LogMeal/Foodvisor) live only in the API's `.env`, never in this app's bundle.
   if unset). Testing from a phone or another device on your network: point it
   at your computer's LAN IP instead, e.g. `VITE_API_URL=http://192.168.1.50:3001`
   — `localhost` always means the device loading the page.
-- Search debounces 300ms and shows loading/empty/error states.
+- Search debounces 300ms and shows loading/empty/error states. A "Recent"
+  shelf surfaces distinct recently-logged foods above the search box so a
+  repeat meal skips searching entirely.
+- The API itself answers common terms (chicken, rice, egg, ...) from a small
+  curated list before ever calling Open Food Facts — see "Search reliability"
+  in `ledger-api/README.md` for why.
+- Barcode: live camera scan via the browser's `BarcodeDetector` API where
+  supported, with manual entry always offered too (not just as a fallback).
 - Photo scanning is hidden with a note when the API reports no photo
   provider configured; manual add is always available as a fallback.
 
 ## Notes
 
 - Calorie/TDEE math is an estimate (±10%). The in-app note in the You tab explains how to find true maintenance.
-- Export produces a full JSON backup; Import restores it exactly (replaces current data, transactional).
+- Export produces a full JSON backup; Import restores it exactly (replaces current data, transactional). Separate CSV exports (weigh-ins, meals, workouts, cardio) are for opening a table in a spreadsheet, not for restoring.
+- Meals, workouts, and cardio sessions can be edited in place (tap the entry) — not just deleted and re-logged.

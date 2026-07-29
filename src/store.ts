@@ -86,6 +86,25 @@ export async function addWorkout(
   return isPR;
 }
 
+// Edit an existing workout's exercise/sets/date. Re-derives isPR the same
+// way addWorkout does, comparing against every OTHER workout of that name
+// so editing a set doesn't just keep whatever PR flag it happened to save
+// with originally.
+export async function updateWorkout(
+  id: string,
+  name: string,
+  sets: SetEntry[],
+  date: string,
+): Promise<boolean> {
+  const prior = await db.workouts.where("name").equals(name).toArray();
+  const priorBest = prior
+    .filter((w) => w.id !== id)
+    .reduce((b, w) => Math.max(b, bestSet1RM(w.sets)), 0);
+  const isPR = bestSet1RM(sets) > priorBest;
+  await db.workouts.update(id, { name, sets, date, isPR });
+  return isPR;
+}
+
 export const deleteWorkout = (id: string) => db.workouts.delete(id);
 
 // Routines hold exercise names only — weight/reps/sets are logged per
@@ -100,10 +119,16 @@ export async function addCardio(
 ): Promise<void> {
   await db.cardio.add({ id: uid(), ...session });
 }
+export async function updateCardio(id: string, session: Omit<CardioSession, "id">): Promise<void> {
+  await db.cardio.update(id, session);
+}
 export const deleteCardio = (id: string) => db.cardio.delete(id);
 
 export async function addMeal(meal: Omit<Meal, "id">): Promise<void> {
   await db.meals.add({ id: uid(), ...meal });
+}
+export async function updateMeal(id: string, meal: Omit<Meal, "id">): Promise<void> {
+  await db.meals.update(id, meal);
 }
 export const deleteMeal = (id: string) => db.meals.delete(id);
 

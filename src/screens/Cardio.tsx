@@ -5,34 +5,48 @@ import { C } from "../theme";
 import { BackBar, Btn, Card, Empty, Field } from "../components/ui";
 import { CARDIO_TYPES } from "../seed";
 import { cardioCalories } from "../formulas";
-import { addCardio, deleteCardio, useCardio } from "../store";
+import { addCardio, deleteCardio, updateCardio, useCardio } from "../store";
 import { todayISO } from "../utils/date";
-import type { Profile } from "../types";
+import type { CardioSession, Profile } from "../types";
 import { Trash2 } from "lucide-react";
+
+const blankForm = { type: "Running", duration: 30, pace: 6, incline: 0 };
 
 export function Cardio({ profile }: { profile: Profile }) {
   const cardio = useCardio();
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({
-    type: "Running",
-    duration: 30,
-    pace: 6,
-    incline: 0,
-  });
+  const [form, setForm] = useState(blankForm);
+  const [editingCardio, setEditingCardio] = useState<CardioSession | null>(null);
 
   // Live estimated burn, recomputed on every input change.
   const est = cardioCalories({ ...form, weightKg: profile.weightKg });
 
-  const save = async () => {
-    await addCardio({ ...form, cal: est, date: todayISO() });
+  const closeForm = () => {
     setAdding(false);
-    setForm({ type: "Running", duration: 30, pace: 6, incline: 0 });
+    setForm(blankForm);
+    setEditingCardio(null);
+  };
+
+  const openEditCardio = (c: CardioSession) => {
+    setForm({ type: c.type, duration: c.duration, pace: c.pace, incline: c.incline });
+    setEditingCardio(c);
+    setAdding(true);
+  };
+
+  const save = async () => {
+    if (editingCardio) {
+      // Preserve the original date — editing shouldn't move the entry.
+      await updateCardio(editingCardio.id, { ...form, cal: est, date: editingCardio.date });
+    } else {
+      await addCardio({ ...form, cal: est, date: todayISO() });
+    }
+    closeForm();
   };
 
   if (adding) {
     return (
       <div>
-        <BackBar onBack={() => setAdding(false)} title="Log cardio" />
+        <BackBar onBack={closeForm} title={editingCardio ? "Edit cardio" : "Log cardio"} />
         <Card style={{ marginBottom: 12 }}>
           <span
             style={{ fontSize: 12, color: C.dim, display: "block", marginBottom: 6 }}
@@ -90,7 +104,7 @@ export function Cardio({ profile }: { profile: Profile }) {
           </span>
         </Card>
         <Btn onClick={save} style={{ width: "100%", padding: "12px 0", background: C.cardio }}>
-          <Check size={16} /> Save session
+          <Check size={16} /> {editingCardio ? "Save changes" : "Save session"}
         </Btn>
       </div>
     );
@@ -116,7 +130,11 @@ export function Cardio({ profile }: { profile: Profile }) {
               alignItems: "center",
             }}
           >
-            <div>
+            <button
+              onClick={() => openEditCardio(c)}
+              aria-label={`Edit ${c.type} session`}
+              style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer", color: C.text }}
+            >
               <strong style={{ fontSize: 15 }}>{c.type}</strong>
               <div
                 style={{
@@ -133,7 +151,7 @@ export function Cardio({ profile }: { profile: Profile }) {
                 <span>{c.pace} min/km</span>
                 {c.incline > 0 && <span>{c.incline}% incline</span>}
               </div>
-            </div>
+            </button>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ textAlign: "right" }}>
                 <div style={{ color: C.cardio, fontWeight: 700, fontSize: 17 }}>

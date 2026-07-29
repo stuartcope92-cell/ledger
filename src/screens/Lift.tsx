@@ -20,11 +20,12 @@ import {
   addWorkout,
   deleteRoutine,
   deleteWorkout,
+  updateWorkout,
   useRoutines,
   useWorkouts,
 } from "../store";
 import { shortLabel, todayISO } from "../utils/date";
-import type { Routine, SetEntry } from "../types";
+import type { Routine, SetEntry, Workout } from "../types";
 
 interface Session {
   name: string;
@@ -41,6 +42,7 @@ export function Lift() {
   const [custom, setCustom] = useState("");
   const [sets, setSets] = useState<SetEntry[]>([{ weight: 20, reps: 10 }]);
   const [query, setQuery] = useState("");
+  const [editingWorkout, setEditingWorkout] = useState<Workout | null>(null);
 
   // Routine creator.
   const [creatingRoutine, setCreatingRoutine] = useState(false);
@@ -78,6 +80,7 @@ export function Lift() {
     setCustom("");
     setSets([{ weight: 20, reps: 10 }]);
     setQuery("");
+    setEditingWorkout(null);
   };
 
   // Opens the log flow pre-filled with one exercise — used by session rows.
@@ -86,12 +89,30 @@ export function Lift() {
     setCustom("");
     setQuery("");
     setSets([{ weight: 20, reps: 10 }]);
+    setEditingWorkout(null);
+    setAdding(true);
+  };
+
+  // Opens the same flow pre-filled with an already-logged workout's values —
+  // fixing a typo'd weight (or the wrong exercise entirely) shouldn't mean
+  // delete-and-redo.
+  const openEditWorkout = (w: Workout) => {
+    setExercise(w.name);
+    setCustom("");
+    setQuery("");
+    setSets(w.sets.map((s) => ({ ...s })));
+    setEditingWorkout(w);
     setAdding(true);
   };
 
   const save = async () => {
     if (!name) return;
-    await addWorkout(name, sets);
+    if (editingWorkout) {
+      // Preserve the original date — editing sets shouldn't move the entry.
+      await updateWorkout(editingWorkout.id, name, sets, editingWorkout.date);
+    } else {
+      await addWorkout(name, sets);
+    }
     closeAddFlow();
   };
 
@@ -131,7 +152,7 @@ export function Lift() {
   if (adding) {
     return (
       <div>
-        <BackBar onBack={closeAddFlow} title="Log exercise" />
+        <BackBar onBack={closeAddFlow} title={editingWorkout ? "Edit exercise" : "Log exercise"} />
         <RestTimer />
         <Card style={{ marginBottom: 12 }}>
           <Field
@@ -299,7 +320,7 @@ export function Lift() {
           ))}
         </Card>
         <Btn onClick={save} disabled={!name} style={{ width: "100%", padding: "12px 0" }}>
-          <Check size={16} /> Save {name || "exercise"}
+          <Check size={16} /> {editingWorkout ? `Save changes` : `Save ${name || "exercise"}`}
         </Btn>
       </div>
     );
@@ -535,12 +556,25 @@ export function Lift() {
               alignItems: "center",
             }}
           >
-            <strong
-              style={{ fontSize: 15, display: "flex", alignItems: "center", gap: 6 }}
+            <button
+              onClick={() => openEditWorkout(w)}
+              aria-label={`Edit ${w.name}`}
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
+                color: C.text,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 15,
+                fontWeight: 700,
+              }}
             >
               {w.name}
               {w.isPR && <Award size={15} color={C.accent} />}
-            </strong>
+            </button>
             <button
               onClick={() => deleteWorkout(w.id)}
               aria-label={`Delete ${w.name}`}

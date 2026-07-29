@@ -1,11 +1,22 @@
 // ── You (profile) tab ──────────────────────────────────────────
 import { useRef, useState } from "react";
-import { Download, Droplet, Footprints, Upload } from "lucide-react";
+import { Download, Droplet, FileSpreadsheet, Footprints, Upload } from "lucide-react";
 import { C } from "../theme";
 import { Btn, Card, Field, Row, inp } from "../components/ui";
 import { ACTIVITY, bmi, proteinTarget } from "../formulas";
 import { buildExport, importBundle } from "../db";
-import { logWeight, setSteps, setWater, useDailyMisc, useWeighIns } from "../store";
+import {
+  logWeight,
+  setSteps,
+  setWater,
+  useCardio,
+  useDailyMisc,
+  useMeals,
+  useWeighIns,
+  useWorkouts,
+} from "../store";
+import { todayISO } from "../utils/date";
+import { downloadCSV, toCSV } from "../utils/csv";
 import type { ActivityLevel, GoalMode, Profile as ProfileT } from "../types";
 
 const MODE_BUTTONS: [GoalMode, string, string][] = [
@@ -27,6 +38,9 @@ export function Profile({
 }) {
   const weighIns = useWeighIns();
   const misc = useDailyMisc();
+  const meals = useMeals();
+  const workouts = useWorkouts();
+  const cardio = useCardio();
   const fileRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -45,6 +59,28 @@ export function Profile({
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  // CSV: separate, clean per-entity tables — not one mixed-schema file —
+  // since that's what's actually useful to open and graph in a spreadsheet.
+  const exportWeighInsCSV = () =>
+    downloadCSV(`ledger-weighins-${todayISO()}.csv`, toCSV(weighIns, ["date", "weightKg"]));
+  const exportMealsCSV = () =>
+    downloadCSV(`ledger-meals-${todayISO()}.csv`, toCSV(meals, ["date", "name", "cal", "p", "c", "f", "source"]));
+  const exportWorkoutsCSV = () => {
+    const rows = workouts.flatMap((w) =>
+      w.sets.map((s, i) => ({
+        date: w.date,
+        exercise: w.name,
+        set: i + 1,
+        weightKg: s.weight,
+        reps: s.reps,
+        isPR: w.isPR && i === 0 ? "yes" : "",
+      })),
+    );
+    downloadCSV(`ledger-workouts-${todayISO()}.csv`, toCSV(rows, ["date", "exercise", "set", "weightKg", "reps", "isPR"]));
+  };
+  const exportCardioCSV = () =>
+    downloadCSV(`ledger-cardio-${todayISO()}.csv`, toCSV(cardio, ["date", "type", "duration", "pace", "incline", "cal"]));
 
   const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -302,9 +338,31 @@ export function Profile({
       {msg && (
         <p style={{ fontSize: 12, color: C.dim, textAlign: "center" }}>{msg}</p>
       )}
+
+      <Card>
+        <span style={{ fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+          <FileSpreadsheet size={15} color={C.dim} /> Export CSV
+        </span>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <Btn kind="ghost" onClick={exportWeighInsCSV} disabled={weighIns.length === 0} style={{ padding: "10px 0", fontSize: 13 }}>
+            Weigh-ins
+          </Btn>
+          <Btn kind="ghost" onClick={exportMealsCSV} disabled={meals.length === 0} style={{ padding: "10px 0", fontSize: 13 }}>
+            Meals
+          </Btn>
+          <Btn kind="ghost" onClick={exportWorkoutsCSV} disabled={workouts.length === 0} style={{ padding: "10px 0", fontSize: 13 }}>
+            Workouts
+          </Btn>
+          <Btn kind="ghost" onClick={exportCardioCSV} disabled={cardio.length === 0} style={{ padding: "10px 0", fontSize: 13 }}>
+            Cardio
+          </Btn>
+        </div>
+      </Card>
+
       <p style={{ fontSize: 11, color: C.dim, textAlign: "center", lineHeight: 1.5 }}>
         Everything is stored on this device only. No account, no tracking.
-        Export is a full JSON backup; Import restores it exactly.
+        Export is a full JSON backup; Import restores it exactly. CSVs are for
+        opening a table in a spreadsheet, not for restoring.
       </p>
     </div>
   );

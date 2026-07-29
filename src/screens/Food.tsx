@@ -1,13 +1,13 @@
 // ── Food tab ───────────────────────────────────────────────────
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Camera, Check, Pencil, ScanBarcode, Trash2, Utensils, X } from "lucide-react";
 import { C } from "../theme";
 import { BackBar, Btn, Card, Empty, Field } from "../components/ui";
 import { BarcodeScanner } from "../components/BarcodeScanner";
 import { apiFoodProvider, scaleToGrams, type FoodResult } from "../services/foodProvider";
-import { addMeal, deleteMeal, useMeals } from "../store";
+import { addMeal, deleteMeal, updateMeal, useMeals } from "../store";
 import { todayISO } from "../utils/date";
-import type { MealSource } from "../types";
+import type { Meal, MealSource } from "../types";
 
 interface TodayStats {
   kcalIn: number;
@@ -32,6 +32,23 @@ export function Food({
   today: TodayStats;
 }) {
   const meals = useMeals();
+
+  // Distinct recently-logged foods, newest first — lets a repeat meal skip
+  // search entirely (BUILD_SPEC §1's "≤3 taps" rule otherwise quietly
+  // breaks for anything eaten regularly).
+  const recentFoods = useMemo(() => {
+    const seen = new Set<string>();
+    const out: typeof meals = [];
+    for (const m of meals) {
+      const key = m.name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(m);
+      if (out.length >= 8) break;
+    }
+    return out;
+  }, [meals]);
+
   const [q, setQ] = useState("");
   const [results, setResults] = useState<FoodResult[]>([]);
   const [searchState, setSearchState] = useState<SearchState>("idle");
@@ -44,6 +61,7 @@ export function Food({
 
   const [showManual, setShowManual] = useState(false);
   const [manual, setManual] = useState(blankManual);
+  const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
 
   const [scanningBarcode, setScanningBarcode] = useState(false);
   const [barcodeLoading, setBarcodeLoading] = useState(false);
@@ -162,19 +180,44 @@ export function Food({
     }
   };
 
+  const openEditMeal = (m: Meal) => {
+    setManual({ name: m.name, cal: m.cal, p: m.p, c: m.c, f: m.f });
+    setEditingMeal(m);
+    setShowManual(true);
+  };
+
+  const closeManual = () => {
+    setShowManual(false);
+    setManual(blankManual);
+    setEditingMeal(null);
+  };
+
   const saveManual = async () => {
     if (!manual.name.trim()) return;
-    await addMeal({
-      date: todayISO(),
-      name: manual.name.trim(),
-      cal: manual.cal,
-      p: manual.p,
-      c: manual.c,
-      f: manual.f,
-      source: "manual",
-    });
-    setManual(blankManual);
-    setShowManual(false);
+    if (editingMeal) {
+      // Preserve the original date/source — editing macros shouldn't
+      // silently move a meal to today or relabel how it was logged.
+      await updateMeal(editingMeal.id, {
+        date: editingMeal.date,
+        name: manual.name.trim(),
+        cal: manual.cal,
+        p: manual.p,
+        c: manual.c,
+        f: manual.f,
+        source: editingMeal.source,
+      });
+    } else {
+      await addMeal({
+        date: todayISO(),
+        name: manual.name.trim(),
+        cal: manual.cal,
+        p: manual.p,
+        c: manual.c,
+        f: manual.f,
+        source: "manual",
+      });
+    }
+    closeManual();
   };
 
   if (scanningBarcode) {
@@ -288,7 +331,7 @@ export function Food({
           )}
         </div>
         <Btn
-          onClick={() => setShowManual((s) => !s)}
+          onClick={() => (showManual ? closeManual() : setShowManual(true))}
           kind="ghost"
           style={{ flex: 1, padding: "12px 0", fontSize: 13 }}
         >
@@ -363,9 +406,28 @@ export function Food({
         </Card>
       )}
 
-      {/* Manual add fallback. */}
+      {/* Manual add fallback, also reused for editing a logged meal. */}
       {showManual && (
         <Card>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 4,
+            }}
+          >
+            <span style={{ fontSize: 13, fontWeight: 600 }}>
+              {editingMeal ? "Edit meal" : "Add meal manually"}
+            </span>
+            <button
+              onClick={closeManual}
+              aria-label="Cancel"
+              style={{ background: "none", border: "none", color: C.dim, cursor: "pointer" }}
+            >
+              <X size={16} />
+            </button>
+          </div>
           <Field
             label="Food name"
             placeholder="e.g. Homemade curry"
@@ -409,8 +471,64 @@ export function Food({
             </div>
           </div>
           <Btn onClick={saveManual} disabled={!manual.name.trim()} style={{ width: "100%" }}>
-            Add meal
+            {editingMeal ? "Save changes" : "Add meal"}
           </Btn>
+        </Card>
+      )}
+
+      {!q.trim() && recentFoods.length > 0 && (
+        <Card>
+          <span style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 8 }}>
+            Recent
+          </span>
+          <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2 }}>
+            {recentFoods.map((m) => (
+              <button
+                key={m.id}
+                onClick={() =>
+                  openPortion(
+                    {
+                      id: `recent:${m.id}`,
+                      name: m.name,
+                      serving: "same as last time",
+                      cal: m.cal,
+                      p: m.p,
+                      c: m.c,
+                      f: m.f,
+                      source: "recent",
+                    },
+                    "search",
+                  )
+                }
+                style={{
+                  flex: "0 0 auto",
+                  minWidth: 110,
+                  maxWidth: 140,
+                  textAlign: "left",
+                  background: C.surface2,
+                  border: `1px solid ${C.line}`,
+                  borderRadius: 10,
+                  padding: 10,
+                  cursor: "pointer",
+                  color: C.text,
+                }}
+              >
+                <strong
+                  style={{
+                    fontSize: 13,
+                    textTransform: "capitalize",
+                    display: "block",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {m.name}
+                </strong>
+                <span style={{ fontSize: 11, color: C.dim }}>{m.cal} kcal</span>
+              </button>
+            ))}
+          </div>
         </Card>
       )}
 
@@ -475,12 +593,16 @@ export function Food({
               alignItems: "center",
             }}
           >
-            <div>
+            <button
+              onClick={() => openEditMeal(m)}
+              aria-label={`Edit ${m.name}`}
+              style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer", color: C.text }}
+            >
               <strong style={{ fontSize: 15, textTransform: "capitalize" }}>{m.name}</strong>
               <div style={{ fontSize: 12, color: C.dim, marginTop: 2 }}>
                 <span style={{ color: C.protein }}>P {m.p}g</span> · C {m.c}g · F {m.f}g
               </div>
-            </div>
+            </button>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ color: C.accent, fontWeight: 700 }}>{m.cal}</span>
               <button
