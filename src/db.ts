@@ -6,12 +6,15 @@ import type {
   CardioSession,
   DailyMisc,
   ExportBundle,
+  ExportedPhoto,
   Meal,
   Profile,
+  ProgressPhoto,
   WeighIn,
   Workout,
 } from "./types";
 import { DEFAULT_PROFILE } from "./seed";
+import { blobToDataUrl, dataUrlToBlob } from "./utils/image";
 
 interface SettingRow {
   key: string;
@@ -25,6 +28,7 @@ class LedgerDB extends Dexie {
   weighIns!: Table<WeighIn, string>;
   dailyMisc!: Table<DailyMisc, string>;
   settings!: Table<SettingRow, string>;
+  progressPhotos!: Table<ProgressPhoto, string>;
 
   constructor() {
     super("ledger");
@@ -35,6 +39,9 @@ class LedgerDB extends Dexie {
       weighIns: "id, date",
       dailyMisc: "date",
       settings: "key",
+    });
+    this.version(2).stores({
+      progressPhotos: "id, date",
     });
   }
 }
@@ -64,7 +71,7 @@ export async function saveDailyMisc(row: DailyMisc): Promise<void> {
 
 // ── Export / Import (BUILD_SPEC §10) ───────────────────────────
 export async function buildExport(): Promise<ExportBundle> {
-  const [profile, workouts, cardio, meals, weighIns, dailyMisc] =
+  const [profile, workouts, cardio, meals, weighIns, dailyMisc, photos] =
     await Promise.all([
       getProfile(),
       db.workouts.toArray(),
@@ -72,9 +79,19 @@ export async function buildExport(): Promise<ExportBundle> {
       db.meals.toArray(),
       db.weighIns.toArray(),
       db.dailyMisc.toArray(),
+      db.progressPhotos.toArray(),
     ]);
+  const progressPhotos: ExportedPhoto[] = await Promise.all(
+    photos.map(async (p) => ({
+      id: p.id,
+      date: p.date,
+      weightKg: p.weightKg,
+      note: p.note,
+      dataUrl: await blobToDataUrl(p.blob),
+    })),
+  );
   return {
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     profile,
     workouts,
@@ -82,6 +99,7 @@ export async function buildExport(): Promise<ExportBundle> {
     meals,
     weighIns,
     dailyMisc,
+    progressPhotos,
   };
 }
 
@@ -90,9 +108,26 @@ export async function importBundle(bundle: ExportBundle): Promise<void> {
   if (!bundle || typeof bundle !== "object" || !bundle.profile) {
     throw new Error("Not a valid Ledger export file.");
   }
+  const photos: ProgressPhoto[] = await Promise.all(
+    (bundle.progressPhotos ?? []).map(async (p) => ({
+      id: p.id,
+      date: p.date,
+      weightKg: p.weightKg,
+      note: p.note,
+      blob: await dataUrlToBlob(p.dataUrl),
+    })),
+  );
   await db.transaction(
     "rw",
-    [db.workouts, db.cardio, db.meals, db.weighIns, db.dailyMisc, db.settings],
+    [
+      db.workouts,
+      db.cardio,
+      db.meals,
+      db.weighIns,
+      db.dailyMisc,
+      db.settings,
+      db.progressPhotos,
+    ],
     async () => {
       await Promise.all([
         db.workouts.clear(),
@@ -100,6 +135,7 @@ export async function importBundle(bundle: ExportBundle): Promise<void> {
         db.meals.clear(),
         db.weighIns.clear(),
         db.dailyMisc.clear(),
+        db.progressPhotos.clear(),
       ]);
       await Promise.all([
         db.workouts.bulkAdd(bundle.workouts ?? []),
@@ -107,6 +143,7 @@ export async function importBundle(bundle: ExportBundle): Promise<void> {
         db.meals.bulkAdd(bundle.meals ?? []),
         db.weighIns.bulkAdd(bundle.weighIns ?? []),
         db.dailyMisc.bulkAdd(bundle.dailyMisc ?? []),
+        db.progressPhotos.bulkAdd(photos),
         saveProfile(bundle.profile),
       ]);
     },

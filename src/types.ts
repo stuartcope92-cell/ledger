@@ -72,6 +72,24 @@ export interface PRRecord {
   date: string;
 }
 
+export interface ProgressPhoto {
+  id: string;
+  date: string; // ISO yyyy-mm-dd — editable at save time, defaults to today
+  blob: Blob;
+  weightKg?: number; // snapshot from the profile at capture time
+  note?: string;
+}
+
+// Same shape as ProgressPhoto but with the blob base64-encoded, since JSON
+// can't carry binary data (BUILD_SPEC §10 export/import).
+export interface ExportedPhoto {
+  id: string;
+  date: string;
+  dataUrl: string;
+  weightKg?: number;
+  note?: string;
+}
+
 // Full export/import payload (BUILD_SPEC §6 "You", §10).
 export interface ExportBundle {
   version: number;
@@ -82,4 +100,5 @@ export interface ExportBundle {
   meals: Meal[];
   weighIns: WeighIn[];
   dailyMisc: DailyMisc[];
+  progressPhotos: ExportedPhoto[];
 }

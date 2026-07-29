@@ -17,6 +17,7 @@ import type {
   Meal,
   PRRecord,
   Profile,
+  ProgressPhoto,
   SetEntry,
   Workout,
 } from "./types";
@@ -49,6 +50,10 @@ export const useMeals = (): Meal[] =>
 
 export const useWeighIns = () =>
   useLiveQuery(() => db.weighIns.orderBy("date").toArray(), [], []) ?? [];
+
+// Newest first, matching the other log lists.
+export const useProgressPhotos = (): ProgressPhoto[] =>
+  useLiveQuery(() => db.progressPhotos.orderBy("date").reverse().toArray(), [], []) ?? [];
 
 export function useDailyMisc(date: string = todayISO()): DailyMisc {
   return (
@@ -115,6 +120,11 @@ export async function logWeight(
   const profile = await getProfile();
   await saveProfile({ ...profile, weightKg });
 }
+
+export async function addProgressPhoto(photo: Omit<ProgressPhoto, "id">): Promise<void> {
+  await db.progressPhotos.add({ id: uid(), ...photo });
+}
+export const deleteProgressPhoto = (id: string) => db.progressPhotos.delete(id);
 
 export async function setWater(glasses: number, date: string = todayISO()) {
   const row = await getDailyMisc(date);

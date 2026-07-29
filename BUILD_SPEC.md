@@ -9,7 +9,7 @@ A simple, no-fuss gym & nutrition tracker. **No social features, no accounts, no
 - **One user, on-device.** No login, no server-side accounts. All data lives on the device.
 - **Fast to log.** Every core action (log a set, add a meal, record cardio) should take ≤3 taps.
 - **Honest numbers.** Calorie/TDEE math is transparent and explained in-app; never present estimates as exact.
-- **Minimal surface.** Five tabs, no settings sprawl. If a feature needs a manual, cut it.
+- **Minimal surface.** Six tabs, no settings sprawl. If a feature needs a manual, cut it.
 
 ---
 
@@ -99,6 +99,14 @@ interface WeighIn { id: string; date: string; weightKg: number; }
 interface DailyMisc { date: string; waterGlasses: number; steps: number; }
 
 interface PRRecord { exercise: string; estimated1RM: number; date: string; }
+
+interface ProgressPhoto {
+  id: string;
+  date: string;              // ISO yyyy-mm-dd, editable at save time
+  blob: Blob;                // compressed image data
+  weightKg?: number;         // profile weight snapshot at save time
+  note?: string;
+}
 ```
 
 Persist each as its own SQLite table keyed by `date` for fast range queries. Profile is a single JSON blob.
@@ -142,7 +150,7 @@ baseMET: Running 9.8, Walking 3.8, Cycling 7.5, Rowing 7.0,
 
 ---
 
-## 6. Screens (5 bottom tabs)
+## 6. Screens (6 bottom tabs)
 
 ### Progress (home)
 - Day / Week / Month range toggle. Drives the x-axis window of the trend chart: Day → last 7 days, Week → last 7 days, Month → last 30 days. (Also drives any date-scoped queries.)
@@ -189,12 +197,20 @@ baseMET: Running 9.8, Walking 3.8, Cycling 7.5, Rowing 7.0,
 - **Photo scan** button → recognition service (see §8). In prototype this is mocked; wire to real API.
 - Meal list with macros; tap to delete. Manual add fallback.
 
+### Photos
+- **Take or upload** a progress photo (file input; `capture="environment"` for the camera path, plain file picker for upload — covers both without separate native APIs).
+- Downscale/compress client-side before storing (long edge ≈1600px, JPEG ~0.85 quality) so IndexedDB and JSON export stay reasonable.
+- On save: editable date (defaults to today — upload can backdate an existing photo), optional short note, and a weight snapshot pulled from the current profile at save time.
+- **Timeline**: reverse-chronological thumbnail grid; tap for a full-size view with its date/weight/note and a delete action.
+- **Compare**: a stacked sub-screen (same pattern as "Check exercise progress") with presets — *vs 1 month*, *vs 3 months*, *vs 1 year* — each picking the most recent photo as "After" and the photo whose date is closest to (today − offset) as "Before". Tapping either side opens a picker to override with any specific photo. Shows days-apart and the weight delta when both photos have one.
+- No pose/angle tagging or manual multi-tag search — a free-text note plus the date timeline covers it; keep this screen as simple as the rest of the app.
+
 ### You (profile)
 - Name, age, height, weight, sex, activity level.
 - Maintenance (TDEE) display + Deficit/Maintain/Surplus toggle + resulting daily target + the accuracy note.
 - Water stepper, steps input.
 - BMI, weigh-in count, "Log today's weight" button.
-- **Export all data (JSON)** and — add for production — **Import** to restore.
+- **Export all data (JSON)** and — add for production — **Import** to restore. Progress photos are included (base64-encoded), so a backup is genuinely complete.
 
 ---
 
@@ -253,7 +269,7 @@ Keep API keys in environment config, never in the client bundle for a shipped ap
 
 ## 10. Definition of Done
 
-- All five tabs functional; data survives app restart.
+- All six tabs functional; data survives app restart.
 - TDEE/target/protein update instantly when profile changes and flow into Food + Progress.
 - Logging a lift/meal/cardio is ≤3 taps.
 - Food search works offline via seed; real API behind a swappable provider.

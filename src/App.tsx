@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import {
   Dumbbell,
   Heart,
+  Images,
   TrendingUp,
   User,
   Utensils,
@@ -24,15 +25,17 @@ import { Progress } from "./screens/Progress";
 import { Lift } from "./screens/Lift";
 import { Cardio } from "./screens/Cardio";
 import { Food } from "./screens/Food";
+import { Photos } from "./screens/Photos";
 import { Profile } from "./screens/Profile";
 
-type TabId = "home" | "lift" | "cardio" | "food" | "profile";
+type TabId = "home" | "lift" | "cardio" | "food" | "photos" | "profile";
 
 const NAV: { id: TabId; icon: LucideIcon; label: string }[] = [
   { id: "home", icon: TrendingUp, label: "Progress" },
   { id: "lift", icon: Dumbbell, label: "Lift" },
   { id: "cardio", icon: Heart, label: "Cardio" },
   { id: "food", icon: Utensils, label: "Food" },
+  { id: "photos", icon: Images, label: "Photos" },
   { id: "profile", icon: User, label: "You" },
 ];
 
@@ -110,6 +113,7 @@ export default function App() {
         {tab === "lift" && <Lift />}
         {tab === "cardio" && <Cardio profile={profile} />}
         {tab === "food" && <Food goal={goal} pTarget={pTarget} today={todayStats} />}
+        {tab === "photos" && <Photos weightKg={profile.weightKg} />}
         {tab === "profile" && (
           <Profile
             profile={profile}
