@@ -41,9 +41,11 @@ Reports which providers are active.
 ```
 
 ### `GET /api/food/search?q=chicken breast`
-Text search. Uses Nutritionix first when configured (natural language, real
-portions), then backfills with Open Food Facts so results are never empty.
-Returns up to 25 `FoodResult`s.
+Text search, layered: a small curated set of ~20 common staples (chicken,
+beef, sausage, rice, egg, ...) first — instant, always correct, independent
+of any upstream provider — then Nutritionix when configured, then Open Food
+Facts backfill. Returns up to 25 `FoodResult`s. See "Search reliability"
+below for why the staples layer exists.
 
 ### `GET /api/food/barcode?code=737628064502`
 Barcode lookup via Open Food Facts. `404` if the product isn't in the database.
@@ -71,7 +73,7 @@ Every item, whatever the source, comes back as:
   grams?: number;      // serving weight when known, for scaling
   cal: number;         // kcal for the stated serving
   p: number; c: number; f: number;   // grams
-  source: string;      // "openfoodfacts" | "nutritionix" | "logmeal" | "foodvisor"
+  source: string;      // "staples" | "openfoodfacts" | "nutritionix" | "logmeal" | "foodvisor"
   confidence?: number; // 0..1, photo results only
 }
 ```
@@ -103,10 +105,36 @@ so it wraps cleanly for serverless (Vercel, Lambda, Cloud Functions). Set your
 env vars in the platform's config, and set `ALLOWED_ORIGIN` to your app's origin
 instead of `*` in production.
 
+## Search reliability
+
+Open Food Facts' free search endpoint (`cgi/search.pl`) is occasionally
+flaky per-request — a genuine zero-result or `503` response for a common
+term that succeeds moments later on an identical request, and under
+sustained load it can fail on nearly every request for a stretch. Three
+things in `src/providers/openFoodFacts.js` and `src/lib/staples.js` handle
+this so a bad moment upstream doesn't become "no matches found":
+
+- **Staples first.** `searchStaples()` (`src/lib/staples.js`) is a small,
+  curated, zero-network list of common whole foods. It always answers
+  correctly for everyday terms regardless of what OFF is doing.
+- **One retry, then give up gracefully.** A zero-result OFF response gets
+  one immediate retry (~400ms) before falling through to whatever else is
+  available.
+- **Don't cache a bad moment for 24h.** Only non-empty OFF results get
+  cached; a transient miss doesn't lock out a real answer for the rest of
+  the day.
+
+There's also a lightweight relevance re-rank on OFF's own results
+(`rankByRelevance`) — OFF's own sort otherwise happily puts "Beef Flavoured
+Bouillon Cubes" ahead of plain beef, since it ranks by popularity, not by
+how well the query matches the product name.
+
 ## Notes on accuracy
 
-- Open Food Facts is crowd-sourced; entries missing energy data are filtered out,
-  but always let users correct values.
+- Open Food Facts is crowd-sourced; entries missing energy data, or with an
+  implausible energy value (>900 kcal/100g — more than pure fat, almost
+  always a data-entry error), are filtered out. Always let users correct
+  values regardless.
 - Photo recognition is approximate — treat every result as an editable estimate,
   never a final number. Portion size is the biggest source of error.
 - Lookups are cached 24 h (barcodes 7 days) to stay within rate limits. Swap the

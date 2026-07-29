@@ -28,6 +28,7 @@ import rateLimit from "express-rate-limit";
 import { searchOFF, barcodeOFF } from "./providers/openFoodFacts.js";
 import { searchNutritionix, nutritionixAvailable } from "./providers/nutritionix.js";
 import { recognizePhoto, photoAvailable, photoProvider } from "./providers/photo.js";
+import { searchStaples } from "./lib/staples.js";
 
 const app = express();
 app.use(cors({ origin: process.env.ALLOWED_ORIGIN || "*" }));
@@ -50,19 +51,22 @@ app.get("/api/health", (_req, res) =>
 );
 
 // ── Text search ────────────────────────────────────────────────
-// Prefer Nutritionix (natural language, portions) when configured; always
-// backfill/OFF so a result set is never empty just because Nutritionix missed.
+// Curated staples first (instant, always correct for common terms) — then
+// Nutritionix when configured — then OFF backfill so a result set is never
+// empty just because an earlier stage missed.
 app.get("/api/food/search", async (req, res) => {
   const q = (req.query.q || "").toString().trim();
   if (!q) return fail(res, 400, "Missing query ?q=");
   try {
-    let results = [];
-    if (nutritionixAvailable()) {
-      results = await searchNutritionix(q).catch(() => []);
+    let results = searchStaples(q);
+    const seen = new Set(results.map(r => r.name.toLowerCase()));
+
+    if (results.length < 5 && nutritionixAvailable()) {
+      const nix = await searchNutritionix(q).catch(() => []);
+      for (const r of nix) if (!seen.has(r.name.toLowerCase())) { results.push(r); seen.add(r.name.toLowerCase()); }
     }
     if (results.length < 5) {
       const off = await searchOFF(q).catch(() => []);
-      const seen = new Set(results.map(r => r.name.toLowerCase()));
       results = results.concat(off.filter(r => !seen.has(r.name.toLowerCase())));
     }
     ok(res, results.slice(0, 25));
