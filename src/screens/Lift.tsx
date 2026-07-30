@@ -27,6 +27,7 @@ import {
 import { shortLabel, todayISO } from "../utils/date";
 import { displayToKg, kgToDisplay, unitSystemOf, weightUnitLabel } from "../utils/units";
 import { plateBreakdown, warmupLadder } from "../utils/plates";
+import { useBackClose } from "../utils/useBackClose";
 import type { Profile, Routine, SetEntry, SetType, Workout } from "../types";
 
 interface Session {
@@ -54,6 +55,12 @@ export function Lift({ profile }: { profile: Profile }) {
   const [sets, setSets] = useState<SetEntry[]>([{ weight: 20, reps: 10, type: "working" }]);
   const [query, setQuery] = useState("");
   const [editingWorkout, setEditingWorkout] = useState<Workout | null>(null);
+  // True when this flow was opened by tapping an exercise in an active
+  // routine session — the exercise is already chosen there, so the search/
+  // custom picker is redundant clutter and gets hidden (still shown for a
+  // fresh ad-hoc "Log exercise" or when editing a past entry, where
+  // correcting to a different exercise entirely is a real use case).
+  const [fromSession, setFromSession] = useState(false);
 
   // Routine creator.
   const [creatingRoutine, setCreatingRoutine] = useState(false);
@@ -92,15 +99,27 @@ export function Lift({ profile }: { profile: Profile }) {
     setSets([{ weight: 20, reps: 10, type: "working" }]);
     setQuery("");
     setEditingWorkout(null);
+    setFromSession(false);
   };
+  useBackClose(adding, closeAddFlow);
 
   // Opens the log flow pre-filled with one exercise — used by session rows.
+  // Also prefills the sets from that exercise's most recent session (same
+  // data as the "beat this" hint) so there's a real weight to work from
+  // instead of the placeholder 20kg/10 default — without it, the plate
+  // calculator below has nothing meaningful to compute for a repeat lift.
   const openLogFor = (exerciseName: string) => {
     setExercise(exerciseName);
     setCustom("");
     setQuery("");
-    setSets([{ weight: 20, reps: 10, type: "working" }]);
+    const prior = workouts.find((w) => w.name === exerciseName);
+    setSets(
+      prior
+        ? prior.sets.map((s) => ({ weight: s.weight, reps: s.reps, type: "working" as const }))
+        : [{ weight: 20, reps: 10, type: "working" }],
+    );
     setEditingWorkout(null);
+    setFromSession(true);
     setAdding(true);
   };
 
@@ -113,6 +132,7 @@ export function Lift({ profile }: { profile: Profile }) {
     setQuery("");
     setSets(w.sets.map((s) => ({ ...s })));
     setEditingWorkout(w);
+    setFromSession(false);
     setAdding(true);
   };
 
@@ -129,6 +149,7 @@ export function Lift({ profile }: { profile: Profile }) {
 
   const startSession = (r: Routine) => setSession({ name: r.name, exercises: r.exercises });
   const exitSession = () => setSession(null);
+  useBackClose(session !== null, exitSession);
 
   const closeRoutineCreator = () => {
     setCreatingRoutine(false);
@@ -137,6 +158,7 @@ export function Lift({ profile }: { profile: Profile }) {
     setRoutineQuery("");
     setRoutineCustom("");
   };
+  useBackClose(creatingRoutine, closeRoutineCreator);
   const saveRoutine = async () => {
     if (!routineName.trim() || routineExercises.length === 0) return;
     await addRoutine(routineName.trim(), routineExercises);
@@ -163,61 +185,70 @@ export function Lift({ profile }: { profile: Profile }) {
   if (adding) {
     return (
       <div>
-        <BackBar onBack={closeAddFlow} title={editingWorkout ? "Edit exercise" : "Log exercise"} />
+        <BackBar
+          onBack={closeAddFlow}
+          title={editingWorkout ? "Edit exercise" : fromSession ? name : "Log exercise"}
+        />
         <RestTimer />
-        <Card style={{ marginBottom: 12 }}>
-          <Field
-            label="Search exercises"
-            placeholder="Type to filter…"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setCustom("");
-            }}
-          />
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 6,
-              maxHeight: 130,
-              overflowY: "auto",
-            }}
-          >
-            {filtered.map((e) => (
-              <button
-                key={e}
-                onClick={() => {
-                  setExercise(e);
-                  setCustom("");
-                }}
-                aria-pressed={exercise === e}
-                style={{
-                  padding: "6px 10px",
-                  borderRadius: 8,
-                  fontSize: 13,
-                  cursor: "pointer",
-                  border: `1px solid ${exercise === e ? C.accent : C.line}`,
-                  background: exercise === e ? C.accent : C.surface2,
-                  color: exercise === e ? C.onAccent : C.text,
-                }}
-              >
-                {e}
-              </button>
-            ))}
-          </div>
-          <div style={{ marginTop: 12 }}>
+        {fromSession ? (
+          <Card style={{ marginBottom: 12, textAlign: "center" }}>
+            <span style={{ fontSize: 15, fontWeight: 700 }}>{name}</span>
+          </Card>
+        ) : (
+          <Card style={{ marginBottom: 12 }}>
             <Field
-              label="…or add your own"
-              placeholder="Custom exercise name"
-              value={custom}
+              label="Search exercises"
+              placeholder="Type to filter…"
+              value={query}
               onChange={(e) => {
-                setCustom(e.target.value);
-                setExercise("");
+                setQuery(e.target.value);
+                setCustom("");
               }}
             />
-          </div>
-        </Card>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 6,
+                maxHeight: 130,
+                overflowY: "auto",
+              }}
+            >
+              {filtered.map((e) => (
+                <button
+                  key={e}
+                  onClick={() => {
+                    setExercise(e);
+                    setCustom("");
+                  }}
+                  aria-pressed={exercise === e}
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 8,
+                    fontSize: 13,
+                    cursor: "pointer",
+                    border: `1px solid ${exercise === e ? C.accent : C.line}`,
+                    background: exercise === e ? C.accent : C.surface2,
+                    color: exercise === e ? C.onAccent : C.text,
+                  }}
+                >
+                  {e}
+                </button>
+              ))}
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <Field
+                label="…or add your own"
+                placeholder="Custom exercise name"
+                value={custom}
+                onChange={(e) => {
+                  setCustom(e.target.value);
+                  setExercise("");
+                }}
+              />
+            </div>
+          </Card>
+        )}
 
         {lastSession && (
           <Card
@@ -611,7 +642,7 @@ export function Lift({ profile }: { profile: Profile }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <Btn onClick={() => setAdding(true)} style={{ padding: "12px 0" }}>
+      <Btn onClick={() => { setFromSession(false); setAdding(true); }} style={{ padding: "12px 0" }}>
         <Plus size={16} /> Log exercise
       </Btn>
       <Card>

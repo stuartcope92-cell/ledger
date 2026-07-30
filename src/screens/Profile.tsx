@@ -19,6 +19,7 @@ import {
 import { todayISO } from "../utils/date";
 import { downloadCSV, toCSV } from "../utils/csv";
 import { cmToDisplay, displayToKg, kgToDisplay, unitSystemOf, weightUnitLabel } from "../utils/units";
+import { useBackClose } from "../utils/useBackClose";
 import { Measurements } from "./Measurements";
 import type { ActivityLevel, GoalMode, Profile as ProfileT } from "../types";
 
@@ -48,6 +49,7 @@ export function Profile({
   const fileRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [showMeasurements, setShowMeasurements] = useState(false);
+  useBackClose(showMeasurements, () => setShowMeasurements(false));
 
   const unit = unitSystemOf(profile);
   const weightLabel = weightUnitLabel(unit);

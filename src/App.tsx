@@ -13,6 +13,7 @@ import { C } from "./theme";
 import { ensureDefaultRoutines } from "./db";
 import { effectiveProteinTarget, targetCalories, tdee } from "./formulas";
 import { inRange } from "./utils/date";
+import { useBackClose } from "./utils/useBackClose";
 import {
   useCardio,
   useDailyMisc,
@@ -42,6 +43,11 @@ const NAV: { id: TabId; icon: LucideIcon; label: string }[] = [
 export default function App() {
   const [tab, setTab] = useState<TabId>("home");
   const [profile, updateProfile] = useProfile();
+
+  // A mobile back gesture from any non-home tab returns to the dashboard
+  // (home) instead of exiting the app — only backing out from home itself
+  // falls through to the native minimize/exit behavior.
+  useBackClose(tab !== "home", () => setTab("home"));
 
   useEffect(() => {
     void ensureDefaultRoutines();

@@ -10,6 +10,7 @@ import { setsVolume } from "../formulas";
 import { inRange, type RangeKey } from "../utils/date";
 import { average, buildTrendSeries, setsPerMuscleGroup, type TrendMetric } from "../utils/series";
 import { kgToDisplay, unitSystemOf, weightUnitLabel } from "../utils/units";
+import { useBackClose } from "../utils/useBackClose";
 import { personalRecords } from "../store";
 import type {
   CardioSession,
@@ -57,6 +58,7 @@ export function Progress({
   const [metric, setMetric] = useState<TrendMetric>("weight");
   const [showExercise, setShowExercise] = useState(false);
   const unit = unitSystemOf(profile);
+  useBackClose(showExercise, () => setShowExercise(false));
 
   const stats = useMemo(() => {
     const m = inRange(meals, range);

@@ -7,6 +7,7 @@ import { BackBar, Btn, Card, Empty } from "../components/ui";
 import { useObjectUrl } from "../utils/useObjectUrl";
 import { shortLabel, toISO } from "../utils/date";
 import { cmToDisplay, kgToDisplay, lengthUnitLabel, weightUnitLabel } from "../utils/units";
+import { useBackClose } from "../utils/useBackClose";
 import { PhotoThumb } from "./Photos";
 import type { Measurement, ProgressPhoto, UnitSystem } from "../types";
 
@@ -65,6 +66,7 @@ export function PhotoCompare({
   const [manualAfterId, setManualAfterId] = useState<string | undefined>();
   const [manualBeforeId, setManualBeforeId] = useState<string | undefined>();
   const [picking, setPicking] = useState<"before" | "after" | null>(null);
+  useBackClose(picking !== null, () => setPicking(null));
 
   const afterPhoto = manualAfterId ? sorted.find((p) => p.id === manualAfterId) : latest;
 

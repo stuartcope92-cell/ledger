@@ -7,6 +7,7 @@ import { C } from "../theme";
 import { BackBar, Btn, Card, Empty, Field } from "../components/ui";
 import { addMeasurement, deleteMeasurement, updateMeasurement, useMeasurements } from "../store";
 import { cmToDisplay, displayToCm, lengthUnitLabel } from "../utils/units";
+import { useBackClose } from "../utils/useBackClose";
 import { shortLabel, todayISO } from "../utils/date";
 import type { Measurement, UnitSystem } from "../types";
 
@@ -53,6 +54,7 @@ export function Measurements({ unit, onBack }: { unit: UnitSystem; onBack: () =>
     setForm(blankForm());
     setEditing(null);
   };
+  useBackClose(adding, close);
 
   const toCm = (v: string): number | undefined =>
     v.trim() === "" ? undefined : displayToCm(+v, unit);

@@ -7,6 +7,7 @@ import { BarcodeScanner } from "../components/BarcodeScanner";
 import { apiFoodProvider, scaleToGrams, type FoodResult } from "../services/foodProvider";
 import { addMeal, deleteMeal, updateMeal, useMeals } from "../store";
 import { todayISO } from "../utils/date";
+import { useBackClose } from "../utils/useBackClose";
 import type { Meal, MealSource } from "../types";
 
 interface TodayStats {
@@ -71,6 +72,8 @@ export function Food({
   // which flow it came from (drives the saved Meal's `source`).
   const [portion, setPortion] = useState<{ item: FoodResult; kind: MealSource } | null>(null);
   const [portionGrams, setPortionGrams] = useState(100);
+  useBackClose(scanningBarcode, () => setScanningBarcode(false));
+  useBackClose(portion !== null, () => setPortion(null));
 
   // Check once whether photo recognition is configured server-side; never
   // let this block or crash the rest of the tab.

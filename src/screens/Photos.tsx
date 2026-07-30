@@ -8,6 +8,7 @@ import { addProgressPhoto, deleteProgressPhoto, useMeasurements, useProgressPhot
 import { compressImage } from "../utils/image";
 import { shortLabel, todayISO } from "../utils/date";
 import { kgToDisplay, unitSystemOf, weightUnitLabel } from "../utils/units";
+import { useBackClose } from "../utils/useBackClose";
 import { PhotoCompare } from "./PhotoCompare";
 import type { Profile, ProgressPhoto, UnitSystem } from "../types";
 
@@ -24,6 +25,9 @@ export function Photos({ profile }: { profile: Profile }) {
   const [showCompare, setShowCompare] = useState(false);
   const [viewing, setViewing] = useState<ProgressPhoto | null>(null);
   const unit = unitSystemOf(profile);
+  useBackClose(showCompare, () => setShowCompare(false));
+  useBackClose(pending !== null, () => setPending(null));
+  useBackClose(viewing !== null, () => setViewing(null));
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);

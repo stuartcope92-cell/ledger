@@ -102,7 +102,12 @@ app.post("/api/food/recognize", upload.single("image"), async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`Ledger API on :${PORT}`));
+// Vercel's Node runtime imports this module and calls the exported Express
+// app directly as a request handler — it never needs (or wants) an actual
+// listening socket, so skip it there.
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 3001;
+  app.listen(PORT, () => console.log(`Ledger API on :${PORT}`));
+}
 
 export default app; // exported for serverless wrappers / tests

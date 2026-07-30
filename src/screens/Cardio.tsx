@@ -8,6 +8,7 @@ import { cardioCalories } from "../formulas";
 import { addCardio, deleteCardio, updateCardio, useCardio } from "../store";
 import { todayISO } from "../utils/date";
 import { kgToDisplay, unitSystemOf, weightUnitLabel } from "../utils/units";
+import { useBackClose } from "../utils/useBackClose";
 import type { CardioSession, Profile } from "../types";
 import { Trash2 } from "lucide-react";
 
@@ -28,6 +29,7 @@ export function Cardio({ profile }: { profile: Profile }) {
     setForm(blankForm);
     setEditingCardio(null);
   };
+  useBackClose(adding, closeForm);
 
   const openEditCardio = (c: CardioSession) => {
     setForm({ type: c.type, duration: c.duration, pace: c.pace, incline: c.incline });
