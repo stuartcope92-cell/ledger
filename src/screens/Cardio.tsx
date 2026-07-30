@@ -7,6 +7,7 @@ import { CARDIO_TYPES } from "../seed";
 import { cardioCalories } from "../formulas";
 import { addCardio, deleteCardio, updateCardio, useCardio } from "../store";
 import { todayISO } from "../utils/date";
+import { kgToDisplay, unitSystemOf, weightUnitLabel } from "../utils/units";
 import type { CardioSession, Profile } from "../types";
 import { Trash2 } from "lucide-react";
 
@@ -17,6 +18,7 @@ export function Cardio({ profile }: { profile: Profile }) {
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState(blankForm);
   const [editingCardio, setEditingCardio] = useState<CardioSession | null>(null);
+  const unit = unitSystemOf(profile);
 
   // Live estimated burn, recomputed on every input change.
   const est = cardioCalories({ ...form, weightKg: profile.weightKg });
@@ -100,7 +102,7 @@ export function Cardio({ profile }: { profile: Profile }) {
             {est} <span style={{ fontSize: 16, color: C.dim }}>kcal</span>
           </div>
           <span style={{ fontSize: 11, color: C.dim }}>
-            Based on your weight of {profile.weightKg} kg
+            Based on your weight of {kgToDisplay(profile.weightKg, unit)} {weightUnitLabel(unit)}
           </span>
         </Card>
         <Btn onClick={save} style={{ width: "100%", padding: "12px 0", background: C.cardio }}>

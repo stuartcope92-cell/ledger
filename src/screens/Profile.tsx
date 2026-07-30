@@ -1,6 +1,6 @@
 // ── You (profile) tab ──────────────────────────────────────────
 import { useRef, useState } from "react";
-import { Download, Droplet, FileSpreadsheet, Footprints, Upload } from "lucide-react";
+import { Download, Droplet, FileSpreadsheet, Footprints, Ruler, Upload } from "lucide-react";
 import { C } from "../theme";
 import { Btn, Card, Field, Row, inp } from "../components/ui";
 import { ACTIVITY, bmi, proteinTarget } from "../formulas";
@@ -12,11 +12,14 @@ import {
   useCardio,
   useDailyMisc,
   useMeals,
+  useMeasurements,
   useWeighIns,
   useWorkouts,
 } from "../store";
 import { todayISO } from "../utils/date";
 import { downloadCSV, toCSV } from "../utils/csv";
+import { cmToDisplay, displayToKg, kgToDisplay, unitSystemOf, weightUnitLabel } from "../utils/units";
+import { Measurements } from "./Measurements";
 import type { ActivityLevel, GoalMode, Profile as ProfileT } from "../types";
 
 const MODE_BUTTONS: [GoalMode, string, string][] = [
@@ -41,8 +44,13 @@ export function Profile({
   const meals = useMeals();
   const workouts = useWorkouts();
   const cardio = useCardio();
+  const measurements = useMeasurements();
   const fileRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [showMeasurements, setShowMeasurements] = useState(false);
+
+  const unit = unitSystemOf(profile);
+  const weightLabel = weightUnitLabel(unit);
 
   const bmiVal = bmi(profile.weightKg, profile.heightCm).toFixed(1);
   const autoProtein = proteinTarget(profile.weightKg);
@@ -62,25 +70,58 @@ export function Profile({
 
   // CSV: separate, clean per-entity tables — not one mixed-schema file —
   // since that's what's actually useful to open and graph in a spreadsheet.
-  const exportWeighInsCSV = () =>
-    downloadCSV(`ledger-weighins-${todayISO()}.csv`, toCSV(weighIns, ["date", "weightKg"]));
+  // Weight/length columns export in the user's current display unit
+  // (matching what they see on screen), with the unit named in the header
+  // so the file is unambiguous either way.
+  const weightCol = unit === "imperial" ? "weightLb" : "weightKg";
+  const lengthSuffix = unit === "imperial" ? "In" : "Cm";
+
+  const exportWeighInsCSV = () => {
+    const rows: Record<string, string | number>[] = weighIns.map((w) => ({
+      date: w.date,
+      [weightCol]: kgToDisplay(w.weightKg, unit),
+    }));
+    downloadCSV(`ledger-weighins-${todayISO()}.csv`, toCSV(rows, ["date", weightCol]));
+  };
   const exportMealsCSV = () =>
     downloadCSV(`ledger-meals-${todayISO()}.csv`, toCSV(meals, ["date", "name", "cal", "p", "c", "f", "source"]));
   const exportWorkoutsCSV = () => {
-    const rows = workouts.flatMap((w) =>
+    const rows: Record<string, string | number>[] = workouts.flatMap((w) =>
       w.sets.map((s, i) => ({
         date: w.date,
         exercise: w.name,
         set: i + 1,
-        weightKg: s.weight,
+        [weightCol]: kgToDisplay(s.weight, unit),
         reps: s.reps,
+        setType: s.type ?? "working",
+        rpe: s.rpe ?? "",
         isPR: w.isPR && i === 0 ? "yes" : "",
       })),
     );
-    downloadCSV(`ledger-workouts-${todayISO()}.csv`, toCSV(rows, ["date", "exercise", "set", "weightKg", "reps", "isPR"]));
+    downloadCSV(
+      `ledger-workouts-${todayISO()}.csv`,
+      toCSV(rows, ["date", "exercise", "set", weightCol, "reps", "setType", "rpe", "isPR"]),
+    );
   };
   const exportCardioCSV = () =>
     downloadCSV(`ledger-cardio-${todayISO()}.csv`, toCSV(cardio, ["date", "type", "duration", "pace", "incline", "cal"]));
+  const exportMeasurementsCSV = () => {
+    const waistCol = `waist${lengthSuffix}`;
+    const chestCol = `chest${lengthSuffix}`;
+    const armsCol = `arms${lengthSuffix}`;
+    const hipsCol = `hips${lengthSuffix}`;
+    const rows: Record<string, string | number>[] = measurements.map((m) => ({
+      date: m.date,
+      [waistCol]: m.waistCm !== undefined ? cmToDisplay(m.waistCm, unit) : "",
+      [chestCol]: m.chestCm !== undefined ? cmToDisplay(m.chestCm, unit) : "",
+      [armsCol]: m.armsCm !== undefined ? cmToDisplay(m.armsCm, unit) : "",
+      [hipsCol]: m.hipsCm !== undefined ? cmToDisplay(m.hipsCm, unit) : "",
+    }));
+    downloadCSV(
+      `ledger-measurements-${todayISO()}.csv`,
+      toCSV(rows, ["date", waistCol, chestCol, armsCol, hipsCol]),
+    );
+  };
 
   const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -96,6 +137,10 @@ export function Profile({
     }
   };
 
+  if (showMeasurements) {
+    return <Measurements unit={unit} onBack={() => setShowMeasurements(false)} />;
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <Card>
@@ -105,6 +150,31 @@ export function Profile({
           onChange={(e) => update({ name: e.target.value })}
           placeholder="Your name"
         />
+        <span style={{ fontSize: 12, color: C.dim, display: "block", marginBottom: 6 }}>
+          Units
+        </span>
+        <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+          {(["metric", "imperial"] as const).map((u) => (
+            <button
+              key={u}
+              onClick={() => update({ unitSystem: u })}
+              aria-pressed={unit === u}
+              style={{
+                flex: 1,
+                padding: "8px 0",
+                borderRadius: 8,
+                fontSize: 13,
+                textTransform: "capitalize",
+                cursor: "pointer",
+                border: `1px solid ${unit === u ? C.accent : C.line}`,
+                background: unit === u ? C.accent : C.surface2,
+                color: unit === u ? C.onAccent : C.text,
+              }}
+            >
+              {u} {u === "metric" ? "(kg/cm)" : "(lb/in)"}
+            </button>
+          ))}
+        </div>
         <div style={{ display: "flex", gap: 10 }}>
           <div style={{ flex: 1 }}>
             <Field
@@ -124,10 +194,10 @@ export function Profile({
           </div>
         </div>
         <Field
-          label="Weight (kg)"
+          label={`Weight (${weightLabel})`}
           type="number"
-          value={profile.weightKg}
-          onChange={(e) => update({ weightKg: +e.target.value })}
+          value={kgToDisplay(profile.weightKg, unit)}
+          onChange={(e) => update({ weightKg: displayToKg(+e.target.value, unit) })}
         />
         <span style={{ fontSize: 12, color: C.dim, display: "block", marginBottom: 6 }}>
           Sex (for BMR accuracy)
@@ -312,7 +382,14 @@ export function Profile({
           onClick={() => logWeight(profile.weightKg)}
           style={{ width: "100%", marginTop: 12 }}
         >
-          Log today's weight ({profile.weightKg} kg)
+          Log today's weight ({kgToDisplay(profile.weightKg, unit)} {weightLabel})
+        </Btn>
+        <Btn
+          kind="ghost"
+          onClick={() => setShowMeasurements(true)}
+          style={{ width: "100%", marginTop: 8 }}
+        >
+          <Ruler size={16} /> Body measurements ({measurements.length})
         </Btn>
       </Card>
 
@@ -355,6 +432,9 @@ export function Profile({
           </Btn>
           <Btn kind="ghost" onClick={exportCardioCSV} disabled={cardio.length === 0} style={{ padding: "10px 0", fontSize: 13 }}>
             Cardio
+          </Btn>
+          <Btn kind="ghost" onClick={exportMeasurementsCSV} disabled={measurements.length === 0} style={{ padding: "10px 0", fontSize: 13 }}>
+            Measurements
           </Btn>
         </div>
       </Card>

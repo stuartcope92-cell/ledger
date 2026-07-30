@@ -15,6 +15,7 @@ import type {
   CardioSession,
   DailyMisc,
   Meal,
+  Measurement,
   PRRecord,
   Profile,
   ProgressPhoto,
@@ -51,6 +52,9 @@ export const useMeals = (): Meal[] =>
 
 export const useWeighIns = () =>
   useLiveQuery(() => db.weighIns.orderBy("date").toArray(), [], []) ?? [];
+
+export const useMeasurements = (): Measurement[] =>
+  useLiveQuery(() => db.measurements.orderBy("date").reverse().toArray(), [], []) ?? [];
 
 // Newest first, matching the other log lists.
 export const useProgressPhotos = (): ProgressPhoto[] =>
@@ -141,6 +145,14 @@ export async function logWeight(
   const profile = await getProfile();
   await saveProfile({ ...profile, weightKg });
 }
+
+export async function addMeasurement(m: Omit<Measurement, "id">): Promise<void> {
+  await db.measurements.add({ id: uid(), ...m });
+}
+export async function updateMeasurement(id: string, m: Omit<Measurement, "id">): Promise<void> {
+  await db.measurements.update(id, m);
+}
+export const deleteMeasurement = (id: string) => db.measurements.delete(id);
 
 export async function addProgressPhoto(photo: Omit<ProgressPhoto, "id">): Promise<void> {
   await db.progressPhotos.add({ id: uid(), ...photo });

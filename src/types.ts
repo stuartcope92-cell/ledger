@@ -7,6 +7,7 @@ export type ActivityLevel =
   | "Active"
   | "Very active";
 export type GoalMode = "deficit" | "maintain" | "surplus";
+export type UnitSystem = "metric" | "imperial";
 
 export interface Profile {
   name: string;
@@ -17,11 +18,16 @@ export interface Profile {
   activity: ActivityLevel;
   mode: GoalMode;
   proteinGoalG?: number; // manual override; falls back to 1.8g/kg when unset
+  unitSystem?: UnitSystem; // display only — undefined = metric; storage always kg/cm
 }
+
+export type SetType = "warmup" | "working" | "drop" | "failure";
 
 export interface SetEntry {
   weight: number; // kg
   reps: number;
+  type?: SetType; // undefined = "working" (the default for new sets too)
+  rpe?: number; // 1–10, optional
 }
 
 export interface Workout {
@@ -69,6 +75,17 @@ export interface WeighIn {
   weightKg: number;
 }
 
+// Waist/chest/arms/hips — logged the same way as weigh-ins, all optional
+// since a given entry might only cover one or two of them. Canonical cm.
+export interface Measurement {
+  id: string;
+  date: string; // ISO yyyy-mm-dd
+  waistCm?: number;
+  chestCm?: number;
+  armsCm?: number;
+  hipsCm?: number;
+}
+
 export interface DailyMisc {
   date: string; // ISO yyyy-mm-dd (primary key)
   waterGlasses: number;
@@ -111,4 +128,5 @@ export interface ExportBundle {
   dailyMisc: DailyMisc[];
   progressPhotos: ExportedPhoto[];
   routines: Routine[];
+  measurements: Measurement[];
 }

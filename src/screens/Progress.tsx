@@ -8,7 +8,8 @@ import { LineChart } from "../components/LineChart";
 import { ExerciseProgress } from "./ExerciseProgress";
 import { setsVolume } from "../formulas";
 import { inRange, type RangeKey } from "../utils/date";
-import { average, buildTrendSeries, type TrendMetric } from "../utils/series";
+import { average, buildTrendSeries, setsPerMuscleGroup, type TrendMetric } from "../utils/series";
+import { kgToDisplay, unitSystemOf, weightUnitLabel } from "../utils/units";
 import { personalRecords } from "../store";
 import type {
   CardioSession,
@@ -55,6 +56,7 @@ export function Progress({
   const [range, setRange] = useState<RangeKey>("day");
   const [metric, setMetric] = useState<TrendMetric>("weight");
   const [showExercise, setShowExercise] = useState(false);
+  const unit = unitSystemOf(profile);
 
   const stats = useMemo(() => {
     const m = inRange(meals, range);
@@ -78,6 +80,7 @@ export function Progress({
   // Day/Week → 7-day window, Month → 30-day window (§6).
   const chartDays = range === "month" ? 30 : 7;
   const active = TREND_METRICS.find((m) => m.id === metric)!;
+  const activeUnit = metric === "weight" ? weightUnitLabel(unit) : active.unit;
   const series = useMemo(
     () =>
       buildTrendSeries(metric, chartDays, {
@@ -88,9 +91,17 @@ export function Progress({
       }),
     [metric, chartDays, weighIns, meals, cardio, profile.weightKg],
   );
+  // Weight is the only series stored in kg — convert to the display unit
+  // for both the headline numbers and the chart itself.
+  const displaySeries = useMemo(
+    () => (metric === "weight" ? series.map((p) => ({ ...p, v: kgToDisplay(p.v, unit) })) : series),
+    [series, metric, unit],
+  );
+  const muscleGroups = useMemo(() => setsPerMuscleGroup(workouts), [workouts]);
+  const maxGroupSets = Math.max(1, ...muscleGroups.map((g) => g.sets));
 
   if (showExercise) {
-    return <ExerciseProgress onBack={() => setShowExercise(false)} />;
+    return <ExerciseProgress profile={profile} onBack={() => setShowExercise(false)} />;
   }
 
   return (
@@ -141,20 +152,20 @@ export function Progress({
           </div>
         </div>
         <span style={{ fontSize: 11, color: C.dim }}>last {chartDays} days</span>
-        {series.length > 0 ? (
+        {displaySeries.length > 0 ? (
           <>
             <div style={{ display: "flex", gap: 16, marginTop: 4, alignItems: "baseline" }}>
               <span>
                 <span style={{ fontSize: 22, fontWeight: 700, color: active.color }}>
-                  {series.at(-1)!.v}
+                  {displaySeries.at(-1)!.v}
                 </span>
-                <span style={{ fontSize: 12, color: C.dim }}> {active.unit} latest</span>
+                <span style={{ fontSize: 12, color: C.dim }}> {activeUnit} latest</span>
               </span>
               <span style={{ fontSize: 12, color: C.dim }}>
-                avg {average(series)} {active.unit}
+                avg {average(displaySeries)} {activeUnit}
               </span>
             </div>
-            <LineChart points={series} color={active.color} />
+            <LineChart points={displaySeries} color={active.color} />
           </>
         ) : (
           <p style={{ fontSize: 13, color: C.dim, marginTop: 10 }}>
@@ -215,11 +226,35 @@ export function Progress({
       </div>
 
       <Card>
-        <Row label="Lift volume" val={`${Math.round(stats.volume).toLocaleString()} kg`} />
+        <Row label="Lift volume" val={`${Math.round(kgToDisplay(stats.volume, unit)).toLocaleString()} ${weightUnitLabel(unit)}`} />
         <Row label="Carbs / Fat" val={`${Math.round(stats.carbs)}g · ${Math.round(stats.fat)}g`} />
         <Row label="Workouts logged" val={stats.workoutCount} />
         <Row label="Cardio sessions" val={stats.cardioCount} last />
       </Card>
+
+      {muscleGroups.length > 0 && (
+        <Card>
+          <h3 style={{ margin: "0 0 10px", fontSize: 15 }}>Muscle groups this week</h3>
+          {muscleGroups.map(({ group, sets }) => (
+            <div key={group} style={{ marginBottom: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
+                <span style={{ color: C.text }}>{group}</span>
+                <span style={{ color: C.dim }}>{sets} set{sets === 1 ? "" : "s"}</span>
+              </div>
+              <div style={{ height: 6, background: C.surface2, borderRadius: 3, overflow: "hidden" }}>
+                <div
+                  style={{
+                    width: `${(sets / maxGroupSets) * 100}%`,
+                    height: "100%",
+                    background: C.body,
+                    borderRadius: 3,
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </Card>
+      )}
 
       {prs.length > 0 && (
         <Card>
@@ -238,7 +273,7 @@ export function Progress({
             <Row
               key={pr.exercise}
               label={pr.exercise}
-              val={`${pr.estimated1RM} kg est. 1RM`}
+              val={`${kgToDisplay(pr.estimated1RM, unit)} ${weightUnitLabel(unit)} est. 1RM`}
               last={i === prs.length - 1}
             />
           ))}

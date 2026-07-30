@@ -1,7 +1,8 @@
 // ── Trend series aggregation (BUILD_SPEC §6 Progress) ──────────
 import { format, parseISO, subDays } from "date-fns";
-import { toISO } from "./date";
+import { toISO, inRange } from "./date";
 import { bestSet1RM, setsVolume } from "../formulas";
+import { EXERCISE_MUSCLE_GROUP } from "../seed";
 import type { CardioSession, Meal, WeighIn, Workout } from "../types";
 
 export type TrendMetric = "weight" | "calories" | "protein" | "cardio";
@@ -113,3 +114,17 @@ export function buildExerciseSeries(
 
 export const average = (pts: Point[]): number =>
   pts.length ? Math.round(pts.reduce((s, p) => s + p.v, 0) / pts.length) : 0;
+
+// Sets logged this week, grouped by muscle group (seed-library lookup;
+// anything else — custom exercises — buckets into "Other"). Descending,
+// zero-count groups dropped.
+export function setsPerMuscleGroup(workouts: Workout[]): { group: string; sets: number }[] {
+  const counts = new Map<string, number>();
+  for (const w of inRange(workouts, "week")) {
+    const group = EXERCISE_MUSCLE_GROUP[w.name] ?? "Other";
+    counts.set(group, (counts.get(group) ?? 0) + w.sets.length);
+  }
+  return [...counts.entries()]
+    .map(([group, sets]) => ({ group, sets }))
+    .sort((a, b) => b.sets - a.sets);
+}

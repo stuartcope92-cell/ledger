@@ -25,22 +25,33 @@ import {
   useWorkouts,
 } from "../store";
 import { shortLabel, todayISO } from "../utils/date";
-import type { Routine, SetEntry, Workout } from "../types";
+import { displayToKg, kgToDisplay, unitSystemOf, weightUnitLabel } from "../utils/units";
+import { plateBreakdown, warmupLadder } from "../utils/plates";
+import type { Profile, Routine, SetEntry, SetType, Workout } from "../types";
 
 interface Session {
   name: string;
   exercises: string[];
 }
 
-export function Lift() {
+const SET_TYPES: { id: SetType; label: string }[] = [
+  { id: "warmup", label: "Wu" },
+  { id: "working", label: "W" },
+  { id: "drop", label: "Drop" },
+  { id: "failure", label: "Fail" },
+];
+
+export function Lift({ profile }: { profile: Profile }) {
   const workouts = useWorkouts();
   const routines = useRoutines();
+  const unit = unitSystemOf(profile);
+  const weightLabel = weightUnitLabel(unit);
 
   // Log-exercise flow (also used to log one exercise from an active session).
   const [adding, setAdding] = useState(false);
   const [exercise, setExercise] = useState("");
   const [custom, setCustom] = useState("");
-  const [sets, setSets] = useState<SetEntry[]>([{ weight: 20, reps: 10 }]);
+  const [sets, setSets] = useState<SetEntry[]>([{ weight: 20, reps: 10, type: "working" }]);
   const [query, setQuery] = useState("");
   const [editingWorkout, setEditingWorkout] = useState<Workout | null>(null);
 
@@ -78,7 +89,7 @@ export function Lift() {
     setAdding(false);
     setExercise("");
     setCustom("");
-    setSets([{ weight: 20, reps: 10 }]);
+    setSets([{ weight: 20, reps: 10, type: "working" }]);
     setQuery("");
     setEditingWorkout(null);
   };
@@ -88,7 +99,7 @@ export function Lift() {
     setExercise(exerciseName);
     setCustom("");
     setQuery("");
-    setSets([{ weight: 20, reps: 10 }]);
+    setSets([{ weight: 20, reps: 10, type: "working" }]);
     setEditingWorkout(null);
     setAdding(true);
   };
@@ -224,12 +235,64 @@ export function Lift() {
             >
               {lastSession.sets.map((s, i) => (
                 <span key={i} style={{ fontSize: 12, color: C.dim }}>
-                  {s.weight}kg×{s.reps}
+                  {kgToDisplay(s.weight, unit)}{weightLabel}×{s.reps}
                 </span>
               ))}
             </div>
           </Card>
         )}
+
+        {(() => {
+          const targetWeightKg = Math.max(0, ...sets.map((s) => s.weight));
+          if (targetWeightKg <= 0) return null;
+          const plates = plateBreakdown(targetWeightKg, unit);
+          const ladder = warmupLadder(targetWeightKg, unit);
+          return (
+            <Card style={{ marginBottom: 12 }}>
+              <span style={{ fontSize: 14, fontWeight: 600, display: "block", marginBottom: 8 }}>
+                Plate calculator
+              </span>
+              <p style={{ fontSize: 12, color: C.dim, margin: "0 0 10px" }}>
+                {plates.length > 0
+                  ? `Per side: ${plates.map((p) => `${p.count}×${p.plate}`).join(" + ")}`
+                  : "Bar only — no plates needed."}
+              </p>
+              {ladder.length > 0 && (
+                <>
+                  <span style={{ fontSize: 12, color: C.dim, display: "block", marginBottom: 6 }}>
+                    Warm-up ladder
+                  </span>
+                  {ladder.map((rung, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        padding: "6px 0",
+                        borderBottom: i === ladder.length - 1 ? "none" : `1px solid ${C.line}`,
+                      }}
+                    >
+                      <span style={{ fontSize: 13 }}>
+                        <span style={{ color: C.dim, fontSize: 11 }}>{rung.label}</span>{" "}
+                        {kgToDisplay(rung.weightKg, unit)}{weightLabel} × {rung.reps}
+                      </span>
+                      <Btn
+                        kind="ghost"
+                        onClick={() =>
+                          setSets([{ weight: rung.weightKg, reps: rung.reps, type: "warmup" }, ...sets])
+                        }
+                        style={{ padding: "3px 8px", fontSize: 11 }}
+                      >
+                        <Plus size={12} /> Add
+                      </Btn>
+                    </div>
+                  ))}
+                </>
+              )}
+            </Card>
+          );
+        })()}
 
         <Card style={{ marginBottom: 12 }}>
           <div
@@ -260,62 +323,114 @@ export function Lift() {
             }}
           >
             <span>#</span>
-            <span>Weight (kg)</span>
+            <span>Weight ({weightLabel})</span>
             <span>Reps</span>
             <span></span>
           </div>
           {sets.map((s, i) => (
-            <div
-              key={i}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "28px 1fr 1fr 32px",
-                gap: 8,
-                alignItems: "center",
-                marginBottom: 6,
-              }}
-            >
-              <span style={{ color: C.dim, fontSize: 13 }}>{i + 1}</span>
-              <input
-                type="number"
-                aria-label={`Set ${i + 1} weight in kilograms`}
-                value={s.weight}
-                onChange={(e) =>
-                  setSets(
-                    sets.map((x, j) =>
-                      j === i ? { ...x, weight: +e.target.value } : x,
-                    ),
-                  )
-                }
-                style={inp}
-              />
-              <input
-                type="number"
-                aria-label={`Set ${i + 1} reps`}
-                value={s.reps}
-                onChange={(e) =>
-                  setSets(
-                    sets.map((x, j) =>
-                      j === i ? { ...x, reps: +e.target.value } : x,
-                    ),
-                  )
-                }
-                style={inp}
-              />
-              <button
-                onClick={() => setSets(sets.filter((_, j) => j !== i))}
-                aria-label={`Remove set ${i + 1}`}
-                disabled={sets.length === 1}
+            <div key={i} style={{ marginBottom: 10 }}>
+              <div
                 style={{
-                  background: "none",
-                  border: "none",
-                  color: C.dim,
-                  cursor: sets.length === 1 ? "default" : "pointer",
-                  opacity: sets.length === 1 ? 0.4 : 1,
+                  display: "grid",
+                  gridTemplateColumns: "28px 1fr 1fr 32px",
+                  gap: 8,
+                  alignItems: "center",
                 }}
               >
-                <X size={16} />
-              </button>
+                <span style={{ color: C.dim, fontSize: 13 }}>{i + 1}</span>
+                <input
+                  type="number"
+                  aria-label={`Set ${i + 1} weight in ${unit === "imperial" ? "pounds" : "kilograms"}`}
+                  value={kgToDisplay(s.weight, unit)}
+                  onChange={(e) =>
+                    setSets(
+                      sets.map((x, j) =>
+                        j === i ? { ...x, weight: displayToKg(+e.target.value, unit) } : x,
+                      ),
+                    )
+                  }
+                  style={inp}
+                />
+                <input
+                  type="number"
+                  aria-label={`Set ${i + 1} reps`}
+                  value={s.reps}
+                  onChange={(e) =>
+                    setSets(
+                      sets.map((x, j) =>
+                        j === i ? { ...x, reps: +e.target.value } : x,
+                      ),
+                    )
+                  }
+                  style={inp}
+                />
+                <button
+                  onClick={() => setSets(sets.filter((_, j) => j !== i))}
+                  aria-label={`Remove set ${i + 1}`}
+                  disabled={sets.length === 1}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: C.dim,
+                    cursor: sets.length === 1 ? "default" : "pointer",
+                    opacity: sets.length === 1 ? 0.4 : 1,
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 6,
+                  marginTop: 6,
+                  paddingLeft: 36,
+                  alignItems: "center",
+                }}
+              >
+                {SET_TYPES.map((t) => {
+                  const on = (s.type ?? "working") === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() =>
+                        setSets(sets.map((x, j) => (j === i ? { ...x, type: t.id } : x)))
+                      }
+                      aria-pressed={on}
+                      style={{
+                        padding: "3px 8px",
+                        borderRadius: 6,
+                        fontSize: 11,
+                        cursor: "pointer",
+                        border: `1px solid ${on ? C.accent : C.line}`,
+                        background: on ? C.accent : C.surface2,
+                        color: on ? C.onAccent : C.dim,
+                      }}
+                    >
+                      {t.label}
+                    </button>
+                  );
+                })}
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  placeholder="RPE"
+                  aria-label={`Set ${i + 1} RPE`}
+                  value={s.rpe ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setSets(
+                      sets.map((x, j) =>
+                        j === i
+                          ? { ...x, rpe: v === "" ? undefined : Math.min(10, Math.max(1, +v)) }
+                          : x,
+                      ),
+                    );
+                  }}
+                  style={{ ...inp, width: 56, padding: "3px 6px", fontSize: 12 }}
+                />
+              </div>
             </div>
           ))}
         </Card>
@@ -597,7 +712,9 @@ export function Lift() {
                   color: C.dim,
                 }}
               >
-                {s.weight}kg × {s.reps}
+                {kgToDisplay(s.weight, unit)}{weightLabel} × {s.reps}
+                {s.type && s.type !== "working" && ` · ${SET_TYPES.find((t) => t.id === s.type)?.label}`}
+                {s.rpe !== undefined && ` · @${s.rpe}`}
               </span>
             ))}
           </div>

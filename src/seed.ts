@@ -24,6 +24,35 @@ export const EXERCISE_LIBRARY: string[] = [
   "Plank",
 ];
 
+export const MUSCLE_GROUPS = ["Chest", "Back", "Legs", "Shoulders", "Arms", "Core"] as const;
+export type MuscleGroup = (typeof MUSCLE_GROUPS)[number];
+
+// Custom/free-text exercises the user logs (not in the library below) fall
+// into an "Other" bucket wherever this is looked up — no per-custom-exercise
+// tagging UI, just this seed-library mapping.
+export const EXERCISE_MUSCLE_GROUP: Record<string, MuscleGroup> = {
+  "Bench Press": "Chest",
+  "Incline Bench Press": "Chest",
+  "Dumbbell Fly": "Chest",
+  Squat: "Legs",
+  "Leg Press": "Legs",
+  "Leg Curl": "Legs",
+  "Leg Extension": "Legs",
+  "Calf Raise": "Legs",
+  "Romanian Deadlift": "Legs",
+  "Hip Thrust": "Legs",
+  Deadlift: "Back",
+  "Barbell Row": "Back",
+  "Pull-Up": "Back",
+  "Lat Pulldown": "Back",
+  "Overhead Press": "Shoulders",
+  "Lateral Raise": "Shoulders",
+  "Face Pull": "Shoulders",
+  "Bicep Curl": "Arms",
+  "Tricep Extension": "Arms",
+  Plank: "Core",
+};
+
 export const TEMPLATES: Record<string, string[]> = {
   "Push Day": [
     "Bench Press",
@@ -66,4 +95,5 @@ export const DEFAULT_PROFILE: Profile = {
   sex: "male",
   activity: "Moderate",
   mode: "maintain",
+  unitSystem: "metric",
 };

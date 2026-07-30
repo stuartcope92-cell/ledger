@@ -4,11 +4,12 @@ import { ArrowLeftRight, Camera, Check, Images, Trash2, Upload } from "lucide-re
 import { C } from "../theme";
 import { BackBar, Btn, Card, Empty, Field, Row } from "../components/ui";
 import { useObjectUrl } from "../utils/useObjectUrl";
-import { addProgressPhoto, deleteProgressPhoto, useProgressPhotos } from "../store";
+import { addProgressPhoto, deleteProgressPhoto, useMeasurements, useProgressPhotos } from "../store";
 import { compressImage } from "../utils/image";
 import { shortLabel, todayISO } from "../utils/date";
+import { kgToDisplay, unitSystemOf, weightUnitLabel } from "../utils/units";
 import { PhotoCompare } from "./PhotoCompare";
-import type { ProgressPhoto } from "../types";
+import type { Profile, ProgressPhoto, UnitSystem } from "../types";
 
 interface Pending {
   blob: Blob;
@@ -16,11 +17,13 @@ interface Pending {
   note: string;
 }
 
-export function Photos({ weightKg }: { weightKg: number }) {
+export function Photos({ profile }: { profile: Profile }) {
   const photos = useProgressPhotos();
+  const measurements = useMeasurements();
   const [pending, setPending] = useState<Pending | null>(null);
   const [showCompare, setShowCompare] = useState(false);
   const [viewing, setViewing] = useState<ProgressPhoto | null>(null);
+  const unit = unitSystemOf(profile);
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
@@ -38,14 +41,21 @@ export function Photos({ weightKg }: { weightKg: number }) {
     await addProgressPhoto({
       date: pending.date,
       blob: pending.blob,
-      weightKg,
+      weightKg: profile.weightKg,
       note: pending.note.trim() || undefined,
     });
     setPending(null);
   };
 
   if (showCompare) {
-    return <PhotoCompare photos={photos} onBack={() => setShowCompare(false)} />;
+    return (
+      <PhotoCompare
+        photos={photos}
+        measurements={measurements}
+        unit={unit}
+        onBack={() => setShowCompare(false)}
+      />
+    );
   }
 
   if (pending) {
@@ -63,6 +73,7 @@ export function Photos({ weightKg }: { weightKg: number }) {
     return (
       <PhotoViewer
         photo={viewing}
+        unit={unit}
         onClose={() => setViewing(null)}
         onDelete={() => {
           deleteProgressPhoto(viewing.id);
@@ -222,10 +233,12 @@ function PendingPhotoEditor({
 
 function PhotoViewer({
   photo,
+  unit,
   onClose,
   onDelete,
 }: {
   photo: ProgressPhoto;
+  unit: UnitSystem;
   onClose: () => void;
   onDelete: () => void;
 }) {
@@ -242,7 +255,7 @@ function PhotoViewer({
       {hasDetails && (
         <Card style={{ marginBottom: 12 }}>
           {photo.weightKg !== undefined && (
-            <Row label="Weight" val={`${photo.weightKg} kg`} last={!photo.note} />
+            <Row label="Weight" val={`${kgToDisplay(photo.weightKg, unit)} ${weightUnitLabel(unit)}`} last={!photo.note} />
           )}
           {photo.note && <Row label="Note" val={photo.note} last />}
         </Card>

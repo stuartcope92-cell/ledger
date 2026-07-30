@@ -112,10 +112,10 @@ export default function App() {
             pTarget={pTarget}
           />
         )}
-        {tab === "lift" && <Lift />}
+        {tab === "lift" && <Lift profile={profile} />}
         {tab === "cardio" && <Cardio profile={profile} />}
         {tab === "food" && <Food goal={goal} pTarget={pTarget} today={todayStats} />}
-        {tab === "photos" && <Photos weightKg={profile.weightKg} />}
+        {tab === "photos" && <Photos profile={profile} />}
         {tab === "profile" && (
           <Profile
             profile={profile}

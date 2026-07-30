@@ -8,6 +8,8 @@ import { EXERCISE_LIBRARY } from "../seed";
 import { useWorkouts } from "../store";
 import { buildExerciseSeries, type ExerciseMetric } from "../utils/series";
 import { shortLabel } from "../utils/date";
+import { kgToDisplay, unitSystemOf, weightUnitLabel } from "../utils/units";
+import type { Profile } from "../types";
 
 const METRICS: { id: ExerciseMetric; label: string; blurb: string }[] = [
   {
@@ -28,11 +30,18 @@ const METRICS: { id: ExerciseMetric; label: string; blurb: string }[] = [
   },
 ];
 
-export function ExerciseProgress({ onBack }: { onBack: () => void }) {
+export function ExerciseProgress({
+  profile,
+  onBack,
+}: {
+  profile: Profile;
+  onBack: () => void;
+}) {
   const workouts = useWorkouts();
   const [exercise, setExercise] = useState<string | null>(null);
   const [metric, setMetric] = useState<ExerciseMetric>("e1rm");
   const [query, setQuery] = useState("");
+  const unit = unitSystemOf(profile);
 
   // Choices: the seed library ∪ anything the user has actually logged.
   const options = useMemo(() => {
@@ -52,11 +61,16 @@ export function ExerciseProgress({ onBack }: { onBack: () => void }) {
     () => (exercise ? buildExerciseSeries(workouts, exercise, metric) : []),
     [workouts, exercise, metric],
   );
+  const displaySeries = useMemo(
+    () => series.map((p) => ({ ...p, v: kgToDisplay(p.v, unit) })),
+    [series, unit],
+  );
 
   const activeBlurb = METRICS.find((m) => m.id === metric)!.blurb;
-  const unit = "kg";
+  const unitLabel = weightUnitLabel(unit);
 
-  const delta = series.length >= 2 ? series.at(-1)!.v - series[0].v : 0;
+  const delta =
+    displaySeries.length >= 2 ? displaySeries.at(-1)!.v - displaySeries[0].v : 0;
 
   return (
     <div>
@@ -140,11 +154,11 @@ export function ExerciseProgress({ onBack }: { onBack: () => void }) {
           <div style={{ display: "flex", gap: 16, alignItems: "baseline" }}>
             <div>
               <span style={{ fontSize: 26, fontWeight: 700, color: C.accent }}>
-                {series.at(-1)!.v}
+                {displaySeries.at(-1)!.v}
               </span>
-              <span style={{ fontSize: 12, color: C.dim }}> {unit} latest</span>
+              <span style={{ fontSize: 12, color: C.dim }}> {unitLabel} latest</span>
             </div>
-            {series.length >= 2 && (
+            {displaySeries.length >= 2 && (
               <span
                 style={{
                   fontSize: 13,
@@ -153,12 +167,12 @@ export function ExerciseProgress({ onBack }: { onBack: () => void }) {
                 }}
               >
                 {delta > 0 ? "▲ +" : delta < 0 ? "▼ " : "± "}
-                {Math.abs(delta)} {unit} since {shortLabel(series[0].iso)}
+                {Math.abs(delta)} {unitLabel} since {shortLabel(displaySeries[0].iso)}
               </span>
             )}
           </div>
 
-          <LineChart points={series} color={C.accent} yLabel={(v) => `${v}`} />
+          <LineChart points={displaySeries} color={C.accent} yLabel={(v) => `${v}`} />
 
           <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
             {METRICS.map((m) => (

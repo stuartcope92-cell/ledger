@@ -6,8 +6,24 @@ import { C } from "../theme";
 import { BackBar, Btn, Card, Empty } from "../components/ui";
 import { useObjectUrl } from "../utils/useObjectUrl";
 import { shortLabel, toISO } from "../utils/date";
+import { cmToDisplay, kgToDisplay, lengthUnitLabel, weightUnitLabel } from "../utils/units";
 import { PhotoThumb } from "./Photos";
-import type { ProgressPhoto } from "../types";
+import type { Measurement, ProgressPhoto, UnitSystem } from "../types";
+
+// Nearest Measurement to targetISO, by absolute calendar-day distance —
+// mirrors nearestExcluding's photo-pairing approach below.
+function nearestMeasurement(measurements: Measurement[], targetISO: string): Measurement | undefined {
+  if (measurements.length === 0) return undefined;
+  const dist = (m: Measurement) => Math.abs(differenceInCalendarDays(parseISO(m.date), parseISO(targetISO)));
+  return measurements.reduce((best, m) => (dist(m) < dist(best) ? m : best));
+}
+
+const MEASUREMENT_FIELDS: { key: keyof Measurement; label: string }[] = [
+  { key: "waistCm", label: "Waist" },
+  { key: "chestCm", label: "Chest" },
+  { key: "armsCm", label: "Arms" },
+  { key: "hipsCm", label: "Hips" },
+];
 
 type Preset = "1m" | "3m" | "1y" | "custom";
 
@@ -33,9 +49,13 @@ function nearestExcluding(
 
 export function PhotoCompare({
   photos,
+  measurements,
+  unit,
   onBack,
 }: {
   photos: ProgressPhoto[];
+  measurements: Measurement[];
+  unit: UnitSystem;
   onBack: () => void;
 }) {
   const sorted = useMemo(() => [...photos].sort((a, b) => a.date.localeCompare(b.date)), [photos]);
@@ -77,8 +97,19 @@ export function PhotoCompare({
       : undefined;
   const weightDelta =
     afterPhoto?.weightKg !== undefined && beforePhoto?.weightKg !== undefined
-      ? Math.round((afterPhoto.weightKg - beforePhoto.weightKg) * 10) / 10
+      ? Math.round((kgToDisplay(afterPhoto.weightKg, unit) - kgToDisplay(beforePhoto.weightKg, unit)) * 10) / 10
       : undefined;
+
+  // Pairs naturally with weigh-ins: nearest logged measurement to each
+  // photo's date, deltas shown only for fields present on both sides.
+  const beforeMeasurement = beforePhoto ? nearestMeasurement(measurements, beforePhoto.date) : undefined;
+  const afterMeasurement = afterPhoto ? nearestMeasurement(measurements, afterPhoto.date) : undefined;
+  const measurementDeltas = MEASUREMENT_FIELDS.map(({ key, label }) => {
+    const b = beforeMeasurement?.[key] as number | undefined;
+    const a = afterMeasurement?.[key] as number | undefined;
+    if (b === undefined || a === undefined) return null;
+    return { label, delta: Math.round((cmToDisplay(a, unit) - cmToDisplay(b, unit)) * 10) / 10 };
+  }).filter((x): x is { label: string; delta: number } => x !== null);
 
   if (sorted.length < 2) {
     return (
@@ -120,8 +151,8 @@ export function PhotoCompare({
 
       <Card>
         <div style={{ display: "flex", gap: 10 }}>
-          <ComparisonSlot label="Before" photo={beforePhoto} onTap={() => setPicking("before")} />
-          <ComparisonSlot label="After" photo={afterPhoto} onTap={() => setPicking("after")} />
+          <ComparisonSlot label="Before" photo={beforePhoto} unit={unit} onTap={() => setPicking("before")} />
+          <ComparisonSlot label="After" photo={afterPhoto} unit={unit} onTap={() => setPicking("after")} />
         </div>
         {daysApart !== undefined && (
           <div style={{ textAlign: "center", marginTop: 12, fontSize: 12, color: C.dim }}>
@@ -131,9 +162,23 @@ export function PhotoCompare({
                 {" · "}
                 <span style={{ color: C.body, fontWeight: 600 }}>
                   {weightDelta > 0 ? "+" : ""}
-                  {weightDelta} kg
+                  {weightDelta} {weightUnitLabel(unit)}
                 </span>
               </>
+            )}
+            {measurementDeltas.length > 0 && (
+              <div style={{ marginTop: 6, display: "flex", justifyContent: "center", gap: 10, flexWrap: "wrap" }}>
+                {measurementDeltas.map(({ label, delta }) => (
+                  <span key={label}>
+                    {label}{" "}
+                    <span style={{ color: delta === 0 ? C.dim : C.body, fontWeight: 600 }}>
+                      {delta > 0 ? "+" : ""}
+                      {delta}
+                      {lengthUnitLabel(unit)}
+                    </span>
+                  </span>
+                ))}
+              </div>
             )}
           </div>
         )}
@@ -148,10 +193,12 @@ export function PhotoCompare({
 function ComparisonSlot({
   label,
   photo,
+  unit,
   onTap,
 }: {
   label: string;
   photo: ProgressPhoto | undefined;
+  unit: UnitSystem;
   onTap: () => void;
 }) {
   const url = useObjectUrl(photo?.blob);
@@ -186,7 +233,7 @@ function ComparisonSlot({
       {photo && (
         <span style={{ fontSize: 11, color: C.dim, display: "block", textAlign: "center", marginTop: 4 }}>
           {shortLabel(photo.date)}
-          {photo.weightKg !== undefined ? ` · ${photo.weightKg}kg` : ""}
+          {photo.weightKg !== undefined ? ` · ${kgToDisplay(photo.weightKg, unit)}${weightUnitLabel(unit)}` : ""}
         </span>
       )}
     </div>
