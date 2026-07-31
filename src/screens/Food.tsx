@@ -7,6 +7,7 @@ import { BarcodeScanner } from "../components/BarcodeScanner";
 import { apiFoodProvider, scaleToGrams, type FoodResult } from "../services/foodProvider";
 import { addMeal, deleteMeal, updateMeal, useMeals } from "../store";
 import { todayISO } from "../utils/date";
+import { compressImage } from "../utils/image";
 import { useBackClose } from "../utils/useBackClose";
 import type { Meal, MealSource } from "../types";
 
@@ -152,7 +153,13 @@ export function Food({
     setScanning(true);
     setScanError(null);
     try {
-      const found = await apiFoodProvider.recognizePhoto(file);
+      // A real phone-camera photo can easily be several MB — Vercel's
+      // serverless functions (what ledger-api runs as) reject any request
+      // body over 4.5MB before it even reaches our code, which otherwise
+      // shows up client-side as a generic "can't reach the service" error.
+      // Same downscale the Photos tab already uses for progress photos.
+      const compressed = await compressImage(file);
+      const found = await apiFoodProvider.recognizePhoto(compressed);
       setCandidates(found);
       if (found.length === 0) setScanError("No foods recognized in that photo — try search instead.");
     } catch {
