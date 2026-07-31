@@ -1,5 +1,8 @@
-// Photo → food recognition. Two vendors supported; pick whichever you have a key
-// for via PHOTO_PROVIDER. Both are paid. Neither is perfect, so results always
+// Photo → food recognition. Three vendors supported; pick whichever you have a
+// key for via PHOTO_PROVIDER. LogMeal/Foodvisor are paid, purpose-built food
+// APIs. Gemini is a general-purpose vision model prompted for the same
+// structured output — free-tier eligible, the recommended default if you don't
+// already have a food-API subscription. Neither is perfect, so results always
 // include a confidence score and the client must let the user confirm/adjust
 // portion before saving.
 //
@@ -7,6 +10,8 @@
 //             https://logmeal.com/api  (Authorization: Bearer <token>)
 //   Foodvisor: single call returns items with nutrition.
 //             https://www.foodvisor.io/en/vision/  (Authorization: Api-Key <key>)
+//   Gemini:   single call, prompted for structured JSON via responseSchema.
+//             https://aistudio.google.com  (?key=<api key> query param)
 
 import { tidy, ensureCalories, num } from "../lib/normalize.js";
 
@@ -14,9 +19,11 @@ export function photoProvider() {
   const p = (process.env.PHOTO_PROVIDER || "").toLowerCase();
   if (p === "logmeal" && process.env.LOGMEAL_TOKEN) return "logmeal";
   if (p === "foodvisor" && process.env.FOODVISOR_KEY) return "foodvisor";
+  if (p === "gemini" && process.env.GEMINI_API_KEY) return "gemini";
   // auto-detect if PHOTO_PROVIDER unset
   if (process.env.LOGMEAL_TOKEN) return "logmeal";
   if (process.env.FOODVISOR_KEY) return "foodvisor";
+  if (process.env.GEMINI_API_KEY) return "gemini";
   return null;
 }
 
@@ -28,9 +35,9 @@ export function photoAvailable() {
 export async function recognizePhoto(imageBuffer, mime = "image/jpeg") {
   const provider = photoProvider();
   if (!provider) throw new Error("No photo provider configured");
-  return provider === "logmeal"
-    ? recognizeLogMeal(imageBuffer, mime)
-    : recognizeFoodvisor(imageBuffer, mime);
+  if (provider === "logmeal") return recognizeLogMeal(imageBuffer, mime);
+  if (provider === "foodvisor") return recognizeFoodvisor(imageBuffer, mime);
+  return recognizeGemini(imageBuffer, mime);
 }
 
 // ── LogMeal ────────────────────────────────────────────────────
@@ -111,4 +118,90 @@ async function recognizeFoodvisor(buf, mime) {
     }
   }
   return out.slice(0, 5);
+}
+
+// ── Gemini ─────────────────────────────────────────────────────
+// A general-purpose vision model, not a food-specific API — prompted for the
+// same shape the other providers return, using responseSchema so the model's
+// output is guaranteed-parseable JSON rather than free text we'd have to
+// scrape. GEMINI_MODEL defaults to Flash (good accuracy/cost/quota balance);
+// override to e.g. "gemini-2.5-flash-lite" for a higher free-tier quota, or
+// "gemini-2.5-pro" for better accuracy at a lower one.
+const GEMINI_PROMPT =
+  "Identify each distinct food item in this photo of a meal. For each, estimate a " +
+  "display name, a short human-readable serving description, the serving weight in " +
+  "grams, and calories/protein/carbs/fat (grams) for that estimated serving. Return " +
+  "up to 5 items, most prominent first. confidence is 0-1: how sure you are of the " +
+  "identification itself, not the nutrition estimate. If no food is visible, return " +
+  "an empty items array.";
+
+const GEMINI_SCHEMA = {
+  type: "object",
+  properties: {
+    items: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          serving: { type: "string" },
+          grams: { type: "number" },
+          cal: { type: "number" },
+          p: { type: "number" },
+          c: { type: "number" },
+          f: { type: "number" },
+          confidence: { type: "number" },
+        },
+        required: ["name", "serving", "cal", "p", "c", "f", "confidence"],
+      },
+    },
+  },
+  required: ["items"],
+};
+
+async function recognizeGemini(buf, mime) {
+  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              { text: GEMINI_PROMPT },
+              { inline_data: { mime_type: mime, data: buf.toString("base64") } },
+            ],
+          },
+        ],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: GEMINI_SCHEMA,
+        },
+      }),
+    },
+  );
+  if (!res.ok) throw new Error(`Gemini request failed: ${res.status}`);
+  const data = await res.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error("Gemini returned no content");
+
+  const items = JSON.parse(text).items;
+  if (!Array.isArray(items)) return [];
+
+  return items.slice(0, 5).map((it, i) =>
+    tidy(ensureCalories({
+      id: `gemini:${i}-${(it.name || "food").toLowerCase().replace(/\s+/g, "-")}`,
+      name: it.name || "Detected food",
+      serving: it.serving || "1 portion (estimate)",
+      grams: it.grams ? num(it.grams) : undefined,
+      cal: num(it.cal),
+      p: num(it.p),
+      c: num(it.c),
+      f: num(it.f),
+      source: "gemini",
+      confidence: num(it.confidence, 0.5),
+    })),
+  );
 }

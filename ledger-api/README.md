@@ -9,11 +9,12 @@ interface; vendor API keys stay server-side and never ship in the app bundle.
 search and barcode lookup for free. Add keys to unlock better text parsing and
 photo recognition:
 
-| Capability            | Provider              | Key needed | Cost        |
-|-----------------------|-----------------------|------------|-------------|
-| Text search + barcode | Open Food Facts       | No         | Free        |
-| Natural-language text | Nutritionix           | Yes        | Free tier   |
-| Photo → food          | LogMeal *or* Foodvisor| Yes        | Paid        |
+| Capability            | Provider                        | Key needed | Cost                |
+|-----------------------|----------------------------------|------------|---------------------|
+| Text search + barcode | Open Food Facts                 | No         | Free                |
+| Natural-language text | Nutritionix                     | Yes        | Free tier           |
+| Photo → food          | LogMeal *or* Foodvisor           | Yes        | Paid                |
+| Photo → food          | Gemini (general vision, prompted)| Yes        | Free-tier eligible  |
 
 The server degrades gracefully: no Nutritionix key → Open Food Facts only; no
 photo key → `/recognize` returns `501` and the app should keep its manual-add
