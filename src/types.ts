@@ -101,7 +101,7 @@ export interface PRRecord {
 export interface ProgressPhoto {
   id: string;
   date: string; // ISO yyyy-mm-dd — editable at save time, defaults to today
-  blob: Blob;
+  storagePath: string; // Supabase Storage path: "{user_id}/{id}.jpg"
   weightKg?: number; // snapshot from the profile at capture time
   note?: string;
 }

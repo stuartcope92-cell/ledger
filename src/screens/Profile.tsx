@@ -4,9 +4,10 @@ import { Download, Droplet, FileSpreadsheet, Footprints, LogOut, Ruler, Upload }
 import { C } from "../theme";
 import { Btn, Card, Field, Row, inp } from "../components/ui";
 import { ACTIVITY, bmi, proteinTarget } from "../formulas";
-import { buildExport, importBundle } from "../db";
 import { supabase } from "../services/supabase";
 import {
+  buildExport,
+  importBundle,
   logWeight,
   setSteps,
   setWater,

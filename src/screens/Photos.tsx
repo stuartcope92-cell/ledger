@@ -4,6 +4,7 @@ import { ArrowLeftRight, Camera, Check, Images, Trash2, Upload } from "lucide-re
 import { C } from "../theme";
 import { BackBar, Btn, Card, Empty, Field, Row } from "../components/ui";
 import { useObjectUrl } from "../utils/useObjectUrl";
+import { useSignedPhotoUrl } from "../utils/useSignedPhotoUrl";
 import { addProgressPhoto, deleteProgressPhoto, useMeasurements, useProgressPhotos } from "../store";
 import { compressImage } from "../utils/image";
 import { shortLabel, todayISO } from "../utils/date";
@@ -147,7 +148,7 @@ export function Photos({ profile }: { profile: Profile }) {
 }
 
 export function PhotoThumb({ photo, onClick }: { photo: ProgressPhoto; onClick: () => void }) {
-  const url = useObjectUrl(photo.blob);
+  const url = useSignedPhotoUrl(photo.storagePath);
   return (
     <button
       onClick={onClick}
@@ -246,7 +247,7 @@ function PhotoViewer({
   onClose: () => void;
   onDelete: () => void;
 }) {
-  const url = useObjectUrl(photo.blob);
+  const url = useSignedPhotoUrl(photo.storagePath);
   const hasDetails = photo.weightKg !== undefined || !!photo.note;
   return (
     <div>

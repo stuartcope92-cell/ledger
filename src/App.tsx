@@ -10,12 +10,13 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { C } from "./theme";
-import { ensureDefaultRoutines } from "./db";
+import { queryClient } from "./queryClient";
 import { effectiveProteinTarget, targetCalories, tdee } from "./formulas";
 import { inRange } from "./utils/date";
 import { useBackClose } from "./utils/useBackClose";
 import { useSession } from "./utils/useSession";
 import {
+  ensureDefaultRoutines,
   useCardio,
   useDailyMisc,
   useMeals,
@@ -52,9 +53,21 @@ export default function App() {
   // falls through to the native minimize/exit behavior.
   useBackClose(tab !== "home", () => setTab("home"));
 
+  // Every data hook below fires unconditionally (before the auth gate
+  // further down), so a session transition needs an explicit cache reset —
+  // React Query has no reason to refetch on its own just because `session`
+  // changed elsewhere. Sign-in: drop any pre-login (unauthenticated, empty/
+  // errored) cache and seed default routines for a first-time account.
+  // Sign-out: wipe the cache entirely so a second account signing in on the
+  // same device never briefly sees the previous one's cached data.
   useEffect(() => {
-    void ensureDefaultRoutines();
-  }, []);
+    if (session) {
+      queryClient.invalidateQueries();
+      void ensureDefaultRoutines();
+    } else {
+      queryClient.clear();
+    }
+  }, [session?.user.id]);
 
   const workouts = useWorkouts();
   const cardio = useCardio();
@@ -81,9 +94,6 @@ export default function App() {
 
   const today = new Date().toLocaleDateString(undefined, { weekday: "short" });
 
-  // Phase 1 of accounts: this gate is the entire scope of the change.
-  // Data (workouts, meals, etc. above) stays in local Dexie regardless of
-  // auth state until the separate data-migration phase.
   if (sessionLoading) {
     return (
       <div

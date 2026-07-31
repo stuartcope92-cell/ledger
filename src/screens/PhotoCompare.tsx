@@ -4,7 +4,7 @@ import { differenceInCalendarDays, parseISO, subMonths, subYears } from "date-fn
 import { Images } from "lucide-react";
 import { C } from "../theme";
 import { BackBar, Btn, Card, Empty } from "../components/ui";
-import { useObjectUrl } from "../utils/useObjectUrl";
+import { useSignedPhotoUrl } from "../utils/useSignedPhotoUrl";
 import { shortLabel, toISO } from "../utils/date";
 import { cmToDisplay, kgToDisplay, lengthUnitLabel, weightUnitLabel } from "../utils/units";
 import { useBackClose } from "../utils/useBackClose";
@@ -203,7 +203,7 @@ function ComparisonSlot({
   unit: UnitSystem;
   onTap: () => void;
 }) {
-  const url = useObjectUrl(photo?.blob);
+  const url = useSignedPhotoUrl(photo?.storagePath);
   return (
     <div style={{ flex: 1 }}>
       <span style={{ fontSize: 11, color: C.dim, display: "block", marginBottom: 4, textAlign: "center" }}>
