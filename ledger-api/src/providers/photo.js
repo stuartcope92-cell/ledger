@@ -124,9 +124,12 @@ async function recognizeFoodvisor(buf, mime) {
 // A general-purpose vision model, not a food-specific API — prompted for the
 // same shape the other providers return, using responseSchema so the model's
 // output is guaranteed-parseable JSON rather than free text we'd have to
-// scrape. GEMINI_MODEL defaults to Flash (good accuracy/cost/quota balance);
-// override to e.g. "gemini-2.5-flash-lite" for a higher free-tier quota, or
-// "gemini-2.5-pro" for better accuracy at a lower one.
+// scrape. GEMINI_MODEL defaults to the "-latest" Flash alias, which Google
+// keeps pointed at whatever current model is actually available — pinned
+// version numbers (e.g. "gemini-2.5-flash") can and do get deprecated out
+// from under a given API key. Override to "gemini-flash-lite-latest" for a
+// higher free-tier quota, or "gemini-pro-latest" for better accuracy at a
+// lower one.
 const GEMINI_PROMPT =
   "Identify each distinct food item in this photo of a meal. For each, estimate a " +
   "display name, a short human-readable serving description, the serving weight in " +
@@ -160,7 +163,7 @@ const GEMINI_SCHEMA = {
 };
 
 async function recognizeGemini(buf, mime) {
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const model = process.env.GEMINI_MODEL || "gemini-flash-latest";
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,
     {
