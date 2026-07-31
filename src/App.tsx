@@ -14,6 +14,7 @@ import { ensureDefaultRoutines } from "./db";
 import { effectiveProteinTarget, targetCalories, tdee } from "./formulas";
 import { inRange } from "./utils/date";
 import { useBackClose } from "./utils/useBackClose";
+import { useSession } from "./utils/useSession";
 import {
   useCardio,
   useDailyMisc,
@@ -28,6 +29,7 @@ import { Cardio } from "./screens/Cardio";
 import { Food } from "./screens/Food";
 import { Photos } from "./screens/Photos";
 import { Profile } from "./screens/Profile";
+import { Login } from "./screens/Login";
 
 type TabId = "home" | "lift" | "cardio" | "food" | "photos" | "profile";
 
@@ -43,6 +45,7 @@ const NAV: { id: TabId; icon: LucideIcon; label: string }[] = [
 export default function App() {
   const [tab, setTab] = useState<TabId>("home");
   const [profile, updateProfile] = useProfile();
+  const { session, loading: sessionLoading } = useSession();
 
   // A mobile back gesture from any non-home tab returns to the dashboard
   // (home) instead of exiting the app — only backing out from home itself
@@ -77,6 +80,30 @@ export default function App() {
   }, [meals, cardio]);
 
   const today = new Date().toLocaleDateString(undefined, { weekday: "short" });
+
+  // Phase 1 of accounts: this gate is the entire scope of the change.
+  // Data (workouts, meals, etc. above) stays in local Dexie regardless of
+  // auth state until the separate data-migration phase.
+  if (sessionLoading) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          background: C.bg,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: C.dim,
+          fontFamily: "system-ui, -apple-system, sans-serif",
+        }}
+      >
+        Loading…
+      </div>
+    );
+  }
+  if (!session) {
+    return <Login />;
+  }
 
   return (
     <div

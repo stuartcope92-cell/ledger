@@ -1,10 +1,11 @@
 // ── You (profile) tab ──────────────────────────────────────────
 import { useRef, useState } from "react";
-import { Download, Droplet, FileSpreadsheet, Footprints, Ruler, Upload } from "lucide-react";
+import { Download, Droplet, FileSpreadsheet, Footprints, LogOut, Ruler, Upload } from "lucide-react";
 import { C } from "../theme";
 import { Btn, Card, Field, Row, inp } from "../components/ui";
 import { ACTIVITY, bmi, proteinTarget } from "../formulas";
 import { buildExport, importBundle } from "../db";
+import { supabase } from "../services/supabase";
 import {
   logWeight,
   setSteps,
@@ -417,6 +418,14 @@ export function Profile({
       {msg && (
         <p style={{ fontSize: 12, color: C.dim, textAlign: "center" }}>{msg}</p>
       )}
+
+      <Btn
+        kind="ghost"
+        onClick={() => supabase.auth.signOut()}
+        style={{ width: "100%", padding: "12px 0", color: C.warn, borderColor: C.warn }}
+      >
+        <LogOut size={16} /> Sign out
+      </Btn>
 
       <Card>
         <span style={{ fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
