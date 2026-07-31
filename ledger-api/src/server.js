@@ -50,26 +50,6 @@ app.get("/api/health", (_req, res) =>
   })
 );
 
-// TEMPORARY — lists the Gemini models this account/key can actually call,
-// straight from Google, so the default in providers/photo.js can be set to
-// something real instead of guessed. Uses the key server-side only; never
-// echoes it back. Remove once GEMINI_MODEL's default is confirmed working.
-app.get("/api/debug/gemini-models", async (_req, res) => {
-  if (!process.env.GEMINI_API_KEY) return fail(res, 400, "GEMINI_API_KEY not set");
-  try {
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models?key=${process.env.GEMINI_API_KEY}`,
-    );
-    const data = await r.json();
-    const names = (data.models || [])
-      .filter((m) => (m.supportedGenerationMethods || []).includes("generateContent"))
-      .map((m) => m.name);
-    ok(res, names);
-  } catch (e) {
-    fail(res, 502, e.message);
-  }
-});
-
 // ── Text search ────────────────────────────────────────────────
 // Curated staples first (instant, always correct for common terms) — then
 // Nutritionix when configured — then OFF backfill so a result set is never
