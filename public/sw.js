@@ -4,7 +4,14 @@
 // fixed asset list at write time, this runtime-caches same-origin GET
 // responses as they're fetched: the shell + assets become available offline
 // after the first successful (online) load.
-const CACHE = "ledger-shell-v1";
+//
+// CACHE must change any time this file changes (or whenever a deploy should
+// force existing installs to drop old cached assets) — the activate handler
+// below only clears out-of-date caches by comparing this name, so bumping it
+// is what actually makes that cleanup fire. skipWaiting()/clients.claim()
+// below mean a bump takes effect on the very next reload, not after an
+// uninstall/reinstall.
+const CACHE = "ledger-shell-v2";
 const APP_SHELL = ["./", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", (event) => {
