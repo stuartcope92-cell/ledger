@@ -182,7 +182,10 @@ async function recognizeGemini(buf, mime) {
       }),
     },
   );
-  if (!res.ok) throw new Error(`Gemini request failed: ${res.status}`);
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Gemini request failed: ${res.status} ${detail}`.trim());
+  }
   const data = await res.json();
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error("Gemini returned no content");
