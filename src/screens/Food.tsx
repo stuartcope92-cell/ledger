@@ -70,8 +70,12 @@ export function Food({
   const [barcodeError, setBarcodeError] = useState<string | null>(null);
 
   // Portion editor: the item being adjusted before it's saved as a Meal, and
-  // which flow it came from (drives the saved Meal's `source`).
-  const [portion, setPortion] = useState<{ item: FoodResult; kind: MealSource } | null>(null);
+  // which flow it came from (drives the saved Meal's `source`). candidateIndex
+  // is set when opened from a photo-scan candidate, so saving can remove just
+  // that one item instead of discarding every other detected food too.
+  const [portion, setPortion] = useState<{ item: FoodResult; kind: MealSource; candidateIndex?: number } | null>(
+    null,
+  );
   const [portionGrams, setPortionGrams] = useState(100);
   useBackClose(scanningBarcode, () => setScanningBarcode(false));
   useBackClose(portion !== null, () => setPortion(null));
@@ -122,9 +126,9 @@ export function Food({
   const remaining = goal - today.kcalIn + today.kcalOut;
   const pRemaining = Math.max(0, pTarget - Math.round(today.protein));
 
-  const openPortion = (item: FoodResult, kind: MealSource) => {
+  const openPortion = (item: FoodResult, kind: MealSource, candidateIndex?: number) => {
     setPortionGrams(item.grams ?? 100);
-    setPortion({ item, kind });
+    setPortion({ item, kind, candidateIndex });
   };
 
   const saveScaled = async () => {
@@ -139,9 +143,15 @@ export function Food({
       f: scaled.f,
       source: portion.kind,
     });
-    setPortion(null);
     setQ("");
-    setCandidates([]);
+    // From a photo-scan candidate: drop just the one saved, so the rest of
+    // a multi-item photo (e.g. cereal + milk) stays available to log next.
+    if (portion.candidateIndex !== undefined) {
+      setCandidates((prev) => prev.filter((_, i) => i !== portion.candidateIndex));
+    } else {
+      setCandidates([]);
+    }
+    setPortion(null);
   };
 
   const startScan = () => fileInputRef.current?.click();
@@ -375,7 +385,9 @@ export function Food({
               marginBottom: 8,
             }}
           >
-            <span style={{ fontSize: 13, fontWeight: 600 }}>Photo match — pick one</span>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>
+              Photo match — tap to log each item
+            </span>
             <button
               onClick={() => setCandidates([])}
               aria-label="Dismiss photo matches"
@@ -388,7 +400,7 @@ export function Food({
             {candidates.map((f, i) => (
               <button
                 key={i}
-                onClick={() => openPortion(f, "photo")}
+                onClick={() => openPortion(f, "photo", i)}
                 style={{
                   textAlign: "left",
                   background: C.surface2,
