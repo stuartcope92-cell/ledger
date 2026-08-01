@@ -55,7 +55,9 @@ pieces:
    All verified in-browser (including a live cereal+milk-style superset
    run-through and the StrictMode fix above); pure logic (progression-style
    date math, volume flag) additionally checked with standalone
-   simulations before wiring into the UI.
+   simulations before wiring into the UI. **Pushed (`7816e7c`) and live** —
+   `routines.linked` and `meal_templates` migrations run against the live
+   Supabase project, Vercel build confirmed green off this commit.
 2. **Milk search + photo-scan multi-item bugfixes** — OFF's free-text search
    is genuinely unreliable for "milk" (confirmed directly against their API:
    even a wide result pool ranks branded/flavoured products above plain
@@ -65,9 +67,8 @@ pieces:
    chicken, rice, etc. Separately, the Food tab's photo-scan was clearing
    *all* detected candidates after saving just one (e.g. a cereal+milk
    photo would lose "milk" the moment "cereal" was saved) — `saveScaled()`
-   now removes only the saved candidate. Pushed as `102171c`; the
-   ledger-api half needs its Vercel deploy to pick up (auto-deploys on
-   push if the GitHub integration is connected — worth a dashboard check).
+   now removes only the saved candidate. Pushed as `102171c` and confirmed
+   deployed (Vercel dashboard shows it Ready/Production).
 3. **Programmed lift goals** — optional per-exercise auto-progression overlay
    on top of plain logging. Set a strength goal (compound: target weight ×
    reps; assisted: an assist-level ladder down to 0) from Progress → Check
@@ -147,31 +148,9 @@ file for current architecture.
 
 ## Next steps (in rough priority order)
 
-1. **Run the two new migrations** on the live Supabase project (SQL Editor)
-   before the superset-linking and meal-template features will actually
-   persist — both already reflected in `supabase/schema.sql`:
-   ```sql
-   alter table public.routines add column linked jsonb;
-   create table public.meal_templates (
-     id text primary key,
-     user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
-     name text not null,
-     cal numeric not null,
-     p numeric not null,
-     c numeric not null,
-     f numeric not null
-   );
-   alter table public.meal_templates enable row level security;
-   create policy "own meal_templates" on public.meal_templates for all
-     using (auth.uid() = user_id) with check (auth.uid() = user_id);
-   grant select, insert, update, delete on public.meal_templates to authenticated;
-   ```
-2. **Confirm the `ledgerapi` Vercel deploy picked up `102171c`** (the milk
-   staples fix) — check the dashboard for a build triggered by that commit;
-   if nothing built, the GitHub integration may need reconnecting.
-3. **Privacy policy / legal review** before any public launch — not something
+1. **Privacy policy / legal review** before any public launch — not something
    Claude can do; a real lawful-basis/consent/data-rights review.
-4. `COMPETITIVE_REVIEW.md` buckets 1 & 2 are now fully shipped (bucket 3
+2. `COMPETITIVE_REVIEW.md` buckets 1 & 2 are now fully shipped (bucket 3
    stays rejected). Nothing queued from it currently.
 
 **Decided against**: Google/Apple OAuth. Email/password via Supabase is the
