@@ -4,6 +4,7 @@ import { Download, Droplet, FileSpreadsheet, Footprints, LogOut, Ruler, Upload }
 import { C } from "../theme";
 import { Btn, Card, Field, Row, inp } from "../components/ui";
 import { ACTIVITY, bmi, effectiveMode, proteinTarget } from "../formulas";
+import { applyTheme, type ThemeMode } from "../theme";
 import { supabase } from "../services/supabase";
 import {
   buildExport,
@@ -52,6 +53,14 @@ export function Profile({
   const [msg, setMsg] = useState<string | null>(null);
   const [showMeasurements, setShowMeasurements] = useState(false);
   useBackClose(showMeasurements, () => setShowMeasurements(false));
+
+  const [themeMode, setThemeMode] = useState<ThemeMode>(
+    () => (document.documentElement.getAttribute("data-theme") as ThemeMode | null) ?? "dark",
+  );
+  const setTheme = (mode: ThemeMode) => {
+    applyTheme(mode);
+    setThemeMode(mode);
+  };
 
   const unit = unitSystemOf(profile);
   const weightLabel = weightUnitLabel(unit);
@@ -180,6 +189,31 @@ export function Profile({
               }}
             >
               {u} {u === "metric" ? "(kg/cm)" : "(lb/in)"}
+            </button>
+          ))}
+        </div>
+        <span style={{ fontSize: 12, color: C.dim, display: "block", marginBottom: 6 }}>
+          Theme
+        </span>
+        <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+          {(["dark", "light"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setTheme(m)}
+              aria-pressed={themeMode === m}
+              style={{
+                flex: 1,
+                padding: "8px 0",
+                borderRadius: 8,
+                fontSize: 13,
+                textTransform: "capitalize",
+                cursor: "pointer",
+                border: `1px solid ${themeMode === m ? C.accent : C.line}`,
+                background: themeMode === m ? C.accent : C.surface2,
+                color: themeMode === m ? C.onAccent : C.text,
+              }}
+            >
+              {m}
             </button>
           ))}
         </div>

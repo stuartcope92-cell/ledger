@@ -45,6 +45,11 @@ export interface Routine {
   id: string;
   name: string;
   exercises: string[];
+  // linked[i] = true means exercises[i] and exercises[i+1] are a superset
+  // pair (back-to-back, minimal rest); consecutive true entries chain into
+  // a larger group. Length exercises.length-1; absent/undefined = no
+  // supersets (all older routines, and any routine that never used one).
+  linked?: boolean[];
 }
 
 export interface CardioSession {
@@ -68,6 +73,18 @@ export interface Meal {
   c: number;
   f: number; // grams
   source: MealSource;
+}
+
+// A user-saved go-to meal (name + fixed macros, no date) — distinct from
+// the Recent shelf's implicit history, for anything logged often enough to
+// be worth naming and keeping around past the Recent shelf's 8-item cap.
+export interface MealTemplate {
+  id: string;
+  name: string;
+  cal: number;
+  p: number;
+  c: number;
+  f: number;
 }
 
 export interface WeighIn {
@@ -170,4 +187,5 @@ export interface ExportBundle {
   progressPhotos: ExportedPhoto[];
   routines: Routine[];
   measurements: Measurement[];
+  mealTemplates: MealTemplate[];
 }

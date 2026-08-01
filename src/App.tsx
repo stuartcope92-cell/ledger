@@ -33,6 +33,7 @@ import { Profile } from "./screens/Profile";
 import { Login } from "./screens/Login";
 
 type TabId = "home" | "lift" | "cardio" | "food" | "photos" | "profile";
+const TAB_IDS: TabId[] = ["home", "lift", "cardio", "food", "photos", "profile"];
 
 const NAV: { id: TabId; icon: LucideIcon; label: string }[] = [
   { id: "home", icon: TrendingUp, label: "Progress" },
@@ -43,8 +44,26 @@ const NAV: { id: TabId; icon: LucideIcon; label: string }[] = [
   { id: "profile", icon: User, label: "You" },
 ];
 
+// PWA shortcut deep-links (manifest.webmanifest `shortcuts`) land on
+// "./?tab=lift" etc. Pure on purpose — StrictMode double-invokes useState
+// lazy initializers in dev, and a side effect here (e.g. scrubbing the URL)
+// would make the second call read state the first call already mutated.
+function initialTab(): TabId {
+  const requested = new URLSearchParams(window.location.search).get("tab");
+  return requested && (TAB_IDS as string[]).includes(requested) ? (requested as TabId) : "home";
+}
+
 export default function App() {
-  const [tab, setTab] = useState<TabId>("home");
+  const [tab, setTab] = useState<TabId>(initialTab);
+
+  // Scrub ?tab= after the state above has already captured it, so a later
+  // refresh doesn't keep forcing the same tab. A separate effect (not the
+  // initializer itself) so it's safe to double-fire under StrictMode.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("tab")) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
   const [profile, updateProfile] = useProfile();
   const { session, loading: sessionLoading } = useSession();
 

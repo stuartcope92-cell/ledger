@@ -4,9 +4,16 @@ import { Pause, Play, RotateCcw, Timer } from "lucide-react";
 import { C } from "../theme";
 import { Card, inp } from "./ui";
 
-export function RestTimer() {
-  const [secs, setSecs] = useState(90); // selected preset
-  const [left, setLeft] = useState(90); // seconds remaining
+export function RestTimer({
+  presets = [60, 90, 120],
+  defaultSecs,
+}: {
+  presets?: number[];
+  defaultSecs?: number;
+} = {}) {
+  const initial = defaultSecs ?? presets[Math.floor(presets.length / 2)] ?? 90;
+  const [secs, setSecs] = useState(initial); // selected preset
+  const [left, setLeft] = useState(initial); // seconds remaining
   const [running, setRunning] = useState(false);
   const ref = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -53,7 +60,7 @@ export function RestTimer() {
           </span>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
-          {[60, 90, 120].map((s) => (
+          {presets.map((s) => (
             <button
               key={s}
               onClick={() => pick(s)}

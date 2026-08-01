@@ -108,6 +108,22 @@ create policy "own meals" on public.meals for all
 grant select, insert, update, delete on public.meals to authenticated;
 create index meals_user_date_idx on public.meals (user_id, date);
 
+-- User-saved go-to meals (name + fixed macros, no date) — distinct from
+-- the Recent shelf, which is just distinct names pulled from meals history.
+create table public.meal_templates (
+  id text primary key,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  name text not null,
+  cal numeric not null,
+  p numeric not null,
+  c numeric not null,
+  f numeric not null
+);
+alter table public.meal_templates enable row level security;
+create policy "own meal_templates" on public.meal_templates for all
+  using (auth.uid() = user_id) with check (auth.uid() = user_id);
+grant select, insert, update, delete on public.meal_templates to authenticated;
+
 create table public.weigh_ins (
   id text primary key,
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
@@ -142,6 +158,9 @@ create table public.routines (
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   name text not null,
   exercises jsonb not null,
+  -- linked[i]=true pairs exercises[i]/[i+1] into a superset (back-to-back,
+  -- shared shorter rest); null/absent = no supersets in this routine.
+  linked jsonb,
   primary key (user_id, id)
 );
 alter table public.routines enable row level security;

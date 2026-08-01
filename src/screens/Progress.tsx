@@ -8,7 +8,7 @@ import { LineChart } from "../components/LineChart";
 import { ExerciseProgress } from "./ExerciseProgress";
 import { setsVolume } from "../formulas";
 import { inRange, type RangeKey } from "../utils/date";
-import { average, buildTrendSeries, setsPerMuscleGroup, type TrendMetric } from "../utils/series";
+import { average, buildTrendSeries, setsPerMuscleGroup, weeklyVolumeFlag, type TrendMetric } from "../utils/series";
 import { kgToDisplay, unitSystemOf, weightUnitLabel } from "../utils/units";
 import { useBackClose } from "../utils/useBackClose";
 import { personalRecords } from "../store";
@@ -101,6 +101,7 @@ export function Progress({
   );
   const muscleGroups = useMemo(() => setsPerMuscleGroup(workouts), [workouts]);
   const maxGroupSets = Math.max(1, ...muscleGroups.map((g) => g.sets));
+  const volumeFlag = useMemo(() => weeklyVolumeFlag(workouts), [workouts]);
 
   if (showExercise) {
     return <ExerciseProgress profile={profile} onBack={() => setShowExercise(false)} />;
@@ -233,6 +234,15 @@ export function Progress({
         <Row label="Workouts logged" val={stats.workoutCount} />
         <Row label="Cardio sessions" val={stats.cardioCount} last />
       </Card>
+
+      {volumeFlag && (
+        <p style={{ fontSize: 12, color: C.dim, textAlign: "center", lineHeight: 1.5, margin: 0 }}>
+          This week's lift volume ({Math.round(kgToDisplay(volumeFlag.thisWeekKg, unit)).toLocaleString()} {weightUnitLabel(unit)}) is{" "}
+          {Math.round((volumeFlag.ratio - 1) * 100)}% above your 4-week average (
+          {Math.round(kgToDisplay(volumeFlag.avgPriorKg, unit)).toLocaleString()} {weightUnitLabel(unit)}) — worth
+          a lighter week soon if you're feeling it.
+        </p>
+      )}
 
       {muscleGroups.length > 0 && (
         <Card>

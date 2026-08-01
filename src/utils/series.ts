@@ -128,3 +128,35 @@ export function setsPerMuscleGroup(workouts: Workout[]): { group: string; sets: 
     .map(([group, sets]) => ({ group, sets }))
     .sort((a, b) => b.sets - a.sets);
 }
+
+const WEEKLY_VOLUME_FLAG_RATIO = 1.3; // this week vs prior-4-week average
+
+export interface VolumeFlag {
+  thisWeekKg: number;
+  avgPriorKg: number;
+  ratio: number;
+}
+
+// A plain observation (not a push notification) when this week's total
+// lift volume runs well above the trailing 4-week average — the same
+// numbers the "Lift volume" stat and weekly-volume card already compute,
+// just compared week over week instead of shown for one week in isolation.
+export function weeklyVolumeFlag(workouts: Workout[]): VolumeFlag | null {
+  const weekVolumeKg = (weeksAgo: number): number => {
+    const end = toISO(subDays(new Date(), weeksAgo * 7));
+    const start = toISO(subDays(new Date(), weeksAgo * 7 + 6));
+    return workouts
+      .filter((w) => w.date >= start && w.date <= end)
+      .reduce((s, w) => s + setsVolume(w.sets), 0);
+  };
+  const priorWeeksKg = [1, 2, 3, 4].map(weekVolumeKg);
+  // Fewer than 2 of the last 4 weeks logged: too little history for a fair
+  // baseline — a brand-new user's first heavy week would otherwise always
+  // look like a spike.
+  if (priorWeeksKg.filter((v) => v > 0).length < 2) return null;
+  const avgPriorKg = priorWeeksKg.reduce((a, b) => a + b, 0) / priorWeeksKg.length;
+  if (avgPriorKg === 0) return null;
+  const thisWeekKg = weekVolumeKg(0);
+  const ratio = thisWeekKg / avgPriorKg;
+  return ratio >= WEEKLY_VOLUME_FLAG_RATIO ? { thisWeekKg, avgPriorKg, ratio } : null;
+}

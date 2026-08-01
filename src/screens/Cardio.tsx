@@ -1,21 +1,28 @@
 // ── Cardio tab ─────────────────────────────────────────────────
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Check, Heart, Plus, Timer } from "lucide-react";
 import { C } from "../theme";
 import { BackBar, Btn, Card, Empty, Field } from "../components/ui";
+import { UndoToast } from "../components/UndoToast";
 import { CARDIO_TYPES } from "../seed";
 import { cardioCalories } from "../formulas";
 import { addCardio, deleteCardio, updateCardio, useCardio } from "../store";
 import { todayISO } from "../utils/date";
 import { kgToDisplay, unitSystemOf, weightUnitLabel } from "../utils/units";
 import { useBackClose } from "../utils/useBackClose";
+import { useUndoableDelete } from "../utils/useUndoableDelete";
 import type { CardioSession, Profile } from "../types";
 import { Trash2 } from "lucide-react";
 
 const blankForm = { type: "Running", duration: 30, pace: 6, incline: 0 };
 
 export function Cardio({ profile }: { profile: Profile }) {
-  const cardio = useCardio();
+  const allCardio = useCardio();
+  const { pendingId: pendingDeleteId, requestDelete, undo } = useUndoableDelete(deleteCardio);
+  const cardio = useMemo(
+    () => allCardio.filter((c) => c.id !== pendingDeleteId),
+    [allCardio, pendingDeleteId],
+  );
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState(blankForm);
   const [editingCardio, setEditingCardio] = useState<CardioSession | null>(null);
@@ -164,7 +171,7 @@ export function Cardio({ profile }: { profile: Profile }) {
                 <span style={{ fontSize: 10, color: C.dim }}>kcal</span>
               </div>
               <button
-                onClick={() => deleteCardio(c.id)}
+                onClick={() => requestDelete(c.id)}
                 aria-label={`Delete ${c.type} session`}
                 style={{ background: "none", border: "none", color: C.dim, cursor: "pointer" }}
               >
@@ -174,6 +181,8 @@ export function Cardio({ profile }: { profile: Profile }) {
           </div>
         </Card>
       ))}
+
+      {pendingDeleteId && <UndoToast message="Cardio session deleted" onUndo={undo} />}
     </div>
   );
 }

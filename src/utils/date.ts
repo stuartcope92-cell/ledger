@@ -8,6 +8,8 @@ export const toISO = (d: Date = new Date()): string => format(d, "yyyy-MM-dd");
 
 export const todayISO = (): string => toISO();
 
+export const yesterdayISO = (): string => toISO(subDays(new Date(), 1));
+
 // Human label ("28 Jul") for a stored ISO date.
 export const shortLabel = (iso: string): string => format(parseISO(iso), "d MMM");
 

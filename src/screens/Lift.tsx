@@ -1,5 +1,5 @@
 // ── Lift tab ───────────────────────────────────────────────────
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Award,
   Check,
@@ -7,6 +7,7 @@ import {
   Circle,
   Dumbbell,
   Layers,
+  Link2,
   Plus,
   Trash2,
   X,
@@ -30,11 +31,15 @@ import { shortLabel, todayISO } from "../utils/date";
 import { displayToKg, kgToDisplay, unitSystemOf, weightUnitLabel } from "../utils/units";
 import { plateBreakdown, warmupLadder } from "../utils/plates";
 import { useBackClose } from "../utils/useBackClose";
+import { useUndoableDelete } from "../utils/useUndoableDelete";
+import { UndoToast } from "../components/UndoToast";
+import { hapticTick } from "../utils/haptics";
 import type { Profile, Routine, SetEntry, SetType, Workout } from "../types";
 
 interface Session {
   name: string;
   exercises: string[];
+  linked?: boolean[];
 }
 
 const SET_TYPES: { id: SetType; label: string }[] = [
@@ -44,8 +49,29 @@ const SET_TYPES: { id: SetType; label: string }[] = [
   { id: "failure", label: "Fail" },
 ];
 
+// Chains consecutive linked[i]===true pairs into groups of 2+ (a superset);
+// everything else stays a group of 1, rendered exactly as before.
+function groupExercises(exercises: string[], linked?: boolean[]): string[][] {
+  const groups: string[][] = [];
+  let current: string[] = [];
+  exercises.forEach((e, i) => {
+    current.push(e);
+    if (!linked?.[i]) {
+      groups.push(current);
+      current = [];
+    }
+  });
+  if (current.length) groups.push(current);
+  return groups;
+}
+
 export function Lift({ profile }: { profile: Profile }) {
-  const workouts = useWorkouts();
+  const allWorkouts = useWorkouts();
+  const { pendingId: pendingDeleteId, requestDelete, undo } = useUndoableDelete(deleteWorkout);
+  const workouts = useMemo(
+    () => allWorkouts.filter((w) => w.id !== pendingDeleteId),
+    [allWorkouts, pendingDeleteId],
+  );
   const routines = useRoutines();
   const programmedLifts = useProgrammedLifts();
   const unit = unitSystemOf(profile);
@@ -64,6 +90,9 @@ export function Lift({ profile }: { profile: Profile }) {
   // fresh ad-hoc "Log exercise" or when editing a past entry, where
   // correcting to a different exercise entirely is a real use case).
   const [fromSession, setFromSession] = useState(false);
+  // True when the exercise currently being logged is part of a superset
+  // group (2+ linked exercises) — swaps in a shorter default rest timer.
+  const [loggingSuperset, setLoggingSuperset] = useState(false);
 
   // Routine creator.
   const [creatingRoutine, setCreatingRoutine] = useState(false);
@@ -71,6 +100,22 @@ export function Lift({ profile }: { profile: Profile }) {
   const [routineExercises, setRoutineExercises] = useState<string[]>([]);
   const [routineQuery, setRoutineQuery] = useState("");
   const [routineCustom, setRoutineCustom] = useState("");
+  // linked[i] = true pairs routineExercises[i]/[i+1] into a superset.
+  // Length always tracks routineExercises.length-1; mid-list edits can
+  // shift which gap a link refers to, but this is a short one-off setup
+  // flow so re-toggling is a fine tradeoff for staying simple.
+  const [routineLinked, setRoutineLinked] = useState<boolean[]>([]);
+  useEffect(() => {
+    setRoutineLinked((prev) => {
+      const needed = Math.max(0, routineExercises.length - 1);
+      if (prev.length === needed) return prev;
+      const next = prev.slice(0, needed);
+      while (next.length < needed) next.push(false);
+      return next;
+    });
+  }, [routineExercises.length]);
+  const toggleLink = (gapIndex: number) =>
+    setRoutineLinked((prev) => prev.map((v, i) => (i === gapIndex ? !v : v)));
 
   // Active session: which exercises have been logged so far (this view only —
   // not persisted, just a convenience queue over the existing log flow).
@@ -99,6 +144,13 @@ export function Lift({ profile }: { profile: Profile }) {
   // progress) — when present, this week's prescription is shown below.
   const activeLift = programmedLifts.find((l) => l.exerciseName === name);
 
+  // Consecutive linked exercises chained into superset groups (size-1
+  // groups render exactly like a normal session row).
+  const sessionGroups = useMemo(
+    () => (session ? groupExercises(session.exercises, session.linked) : []),
+    [session],
+  );
+
   const closeAddFlow = () => {
     setAdding(false);
     setExercise("");
@@ -107,6 +159,7 @@ export function Lift({ profile }: { profile: Profile }) {
     setQuery("");
     setEditingWorkout(null);
     setFromSession(false);
+    setLoggingSuperset(false);
   };
   useBackClose(adding, closeAddFlow);
 
@@ -127,6 +180,7 @@ export function Lift({ profile }: { profile: Profile }) {
     );
     setEditingWorkout(null);
     setFromSession(true);
+    setLoggingSuperset(!!sessionGroups.find((g) => g.includes(exerciseName) && g.length > 1));
     setAdding(true);
   };
 
@@ -151,10 +205,25 @@ export function Lift({ profile }: { profile: Profile }) {
     } else {
       await addWorkout(name, sets);
     }
+    hapticTick();
+
+    // Mid-superset: jump straight to the next un-done member of the group
+    // instead of dropping back to the checklist — that's the whole point of
+    // pairing them (back-to-back, no detour).
+    if (fromSession) {
+      const group = sessionGroups.find((g) => g.includes(name));
+      if (group && group.length > 1) {
+        const next = group.find((e) => e !== name && !doneToday.has(e));
+        if (next) {
+          openLogFor(next);
+          return;
+        }
+      }
+    }
     closeAddFlow();
   };
 
-  const startSession = (r: Routine) => setSession({ name: r.name, exercises: r.exercises });
+  const startSession = (r: Routine) => setSession({ name: r.name, exercises: r.exercises, linked: r.linked });
   const exitSession = () => setSession(null);
   useBackClose(session !== null, exitSession);
 
@@ -162,13 +231,15 @@ export function Lift({ profile }: { profile: Profile }) {
     setCreatingRoutine(false);
     setRoutineName("");
     setRoutineExercises([]);
+    setRoutineLinked([]);
     setRoutineQuery("");
     setRoutineCustom("");
   };
   useBackClose(creatingRoutine, closeRoutineCreator);
   const saveRoutine = async () => {
     if (!routineName.trim() || routineExercises.length === 0) return;
-    await addRoutine(routineName.trim(), routineExercises);
+    const anyLinked = routineLinked.some(Boolean);
+    await addRoutine(routineName.trim(), routineExercises, anyLinked ? routineLinked : undefined);
     closeRoutineCreator();
   };
   const toggleRoutineExercise = (n: string) => {
@@ -196,7 +267,11 @@ export function Lift({ profile }: { profile: Profile }) {
           onBack={closeAddFlow}
           title={editingWorkout ? "Edit exercise" : fromSession ? name : "Log exercise"}
         />
-        <RestTimer />
+        {loggingSuperset ? (
+          <RestTimer presets={[15, 30, 45]} defaultSecs={30} />
+        ) : (
+          <RestTimer />
+        )}
         {fromSession ? (
           <Card style={{ marginBottom: 12, textAlign: "center" }}>
             <span style={{ fontSize: 15, fontWeight: 700 }}>{name}</span>
@@ -591,35 +666,56 @@ export function Lift({ profile }: { profile: Profile }) {
 
         {routineExercises.length > 0 && (
           <Card style={{ marginBottom: 12 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 4 }}>
               {routineExercises.length} exercise{routineExercises.length === 1 ? "" : "s"}
             </span>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {routineExercises.map((e) => (
-                <span
-                  key={e}
+            <p style={{ fontSize: 11, color: C.dim, margin: "0 0 8px" }}>
+              Link two exercises to log them as a superset — back-to-back, shared shorter rest.
+            </p>
+            {routineExercises.map((e, i) => (
+              <div key={e}>
+                <div
                   style={{
-                    display: "inline-flex",
+                    display: "flex",
                     alignItems: "center",
-                    gap: 4,
-                    fontSize: 12,
-                    background: C.surface2,
-                    padding: "4px 6px 4px 10px",
-                    borderRadius: 6,
-                    color: C.text,
+                    justifyContent: "space-between",
+                    padding: "8px 0",
+                    borderBottom: `1px solid ${C.line}`,
                   }}
                 >
-                  {e}
+                  <span style={{ fontSize: 13, color: C.text }}>{e}</span>
                   <button
                     onClick={() => removeRoutineExercise(e)}
                     aria-label={`Remove ${e}`}
                     style={{ background: "none", border: "none", color: C.dim, cursor: "pointer", display: "flex", padding: 2 }}
                   >
-                    <X size={12} />
+                    <X size={14} />
                   </button>
-                </span>
-              ))}
-            </div>
+                </div>
+                {i < routineExercises.length - 1 && (
+                  <button
+                    onClick={() => toggleLink(i)}
+                    aria-pressed={!!routineLinked[i]}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      width: "100%",
+                      padding: "6px 0",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: routineLinked[i] ? C.accent : C.dim,
+                      fontSize: 11,
+                      fontWeight: routineLinked[i] ? 700 : 500,
+                    }}
+                  >
+                    <Link2 size={12} />
+                    {routineLinked[i] ? "Superset — linked" : "Link as superset"}
+                  </button>
+                )}
+              </div>
+            ))}
           </Card>
         )}
 
@@ -636,39 +732,61 @@ export function Lift({ profile }: { profile: Profile }) {
 
   if (session) {
     const allDone = session.exercises.every((e) => doneToday.has(e));
+    const exerciseRow = (e: string, last: boolean) => {
+      const done = doneToday.has(e);
+      return (
+        <button
+          key={e}
+          onClick={() => openLogFor(e)}
+          style={{
+            width: "100%",
+            textAlign: "left",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "12px 0",
+            borderBottom: last ? "none" : `1px solid ${C.line}`,
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            color: C.text,
+          }}
+        >
+          <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, opacity: done ? 0.6 : 1 }}>
+            {done ? <CheckCircle2 size={16} color={C.accent} /> : <Circle size={16} color={C.dim} />}
+            {e}
+          </span>
+          {done && <span style={{ fontSize: 11, color: C.accent }}>Logged</span>}
+        </button>
+      );
+    };
     return (
       <div>
         <BackBar onBack={exitSession} title={session.name} />
-        <Card>
-          {session.exercises.map((e, i) => {
-            const done = doneToday.has(e);
-            return (
-              <button
-                key={e}
-                onClick={() => openLogFor(e)}
+        {sessionGroups.map((group, gi) =>
+          group.length > 1 ? (
+            <Card key={gi} style={{ marginBottom: 12, borderColor: C.accentDim, padding: "10px 14px" }}>
+              <span
                 style={{
-                  width: "100%",
-                  textAlign: "left",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "12px 0",
-                  borderBottom: i === session.exercises.length - 1 ? "none" : `1px solid ${C.line}`,
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  color: C.text,
+                  gap: 6,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: C.accent,
+                  marginBottom: 2,
                 }}
               >
-                <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, opacity: done ? 0.6 : 1 }}>
-                  {done ? <CheckCircle2 size={16} color={C.accent} /> : <Circle size={16} color={C.dim} />}
-                  {e}
-                </span>
-                {done && <span style={{ fontSize: 11, color: C.accent }}>Logged</span>}
-              </button>
-            );
-          })}
-        </Card>
+                <Link2 size={12} /> Superset — back to back, short rest between
+              </span>
+              {group.map((e, i) => exerciseRow(e, i === group.length - 1))}
+            </Card>
+          ) : (
+            <Card key={gi} style={{ marginBottom: 12, padding: "10px 14px" }}>
+              {exerciseRow(group[0], true)}
+            </Card>
+          ),
+        )}
         {allDone && (
           <p style={{ fontSize: 12, color: C.accent, textAlign: "center", marginTop: 10 }}>
             All exercises logged — nice work.
@@ -760,7 +878,7 @@ export function Lift({ profile }: { profile: Profile }) {
               {w.isPR && <Award size={15} color={C.accent} />}
             </button>
             <button
-              onClick={() => deleteWorkout(w.id)}
+              onClick={() => requestDelete(w.id)}
               aria-label={`Delete ${w.name}`}
               style={{ background: "none", border: "none", color: C.dim, cursor: "pointer" }}
             >
@@ -789,6 +907,8 @@ export function Lift({ profile }: { profile: Profile }) {
           </div>
         </Card>
       ))}
+
+      {pendingDeleteId && <UndoToast message="Workout deleted" onUndo={undo} />}
     </div>
   );
 }

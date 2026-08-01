@@ -27,6 +27,7 @@ import type {
   ExportedPhoto,
   LiftType,
   Meal,
+  MealTemplate,
   Measurement,
   PRRecord,
   Profile,
@@ -195,14 +196,19 @@ export async function deleteWorkout(id: string): Promise<void> {
 async function fetchRoutines(): Promise<Routine[]> {
   const { data, error } = await supabase.from("routines").select("*").order("name");
   if (error) throw error;
-  return (data ?? []).map((r) => ({ id: r.id, name: r.name, exercises: r.exercises as string[] }));
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    name: r.name,
+    exercises: r.exercises as string[],
+    linked: (r.linked as boolean[] | null) ?? undefined,
+  }));
 }
 
 export const useRoutines = (): Routine[] =>
   useQuery({ queryKey: ["routines"], queryFn: fetchRoutines }).data ?? [];
 
-export async function addRoutine(name: string, exercises: string[]): Promise<void> {
-  const { error } = await supabase.from("routines").insert({ id: uid(), name, exercises });
+export async function addRoutine(name: string, exercises: string[], linked?: boolean[]): Promise<void> {
+  const { error } = await supabase.from("routines").insert({ id: uid(), name, exercises, linked: linked ?? null });
   if (error) throw error;
   queryClient.invalidateQueries({ queryKey: ["routines"] });
 }
@@ -387,6 +393,31 @@ export async function deleteMeal(id: string): Promise<void> {
   const { error } = await supabase.from("meals").delete().eq("id", id);
   if (error) throw error;
   queryClient.invalidateQueries({ queryKey: ["meals"] });
+}
+
+// ── Meal templates ───────────────────────────────────────────────────
+async function fetchMealTemplates(): Promise<MealTemplate[]> {
+  const { data, error } = await supabase
+    .from("meal_templates")
+    .select("id, name, cal, p, c, f")
+    .order("name");
+  if (error) throw error;
+  return (data ?? []) as MealTemplate[];
+}
+
+export const useMealTemplates = (): MealTemplate[] =>
+  useQuery({ queryKey: ["mealTemplates"], queryFn: fetchMealTemplates }).data ?? [];
+
+export async function addMealTemplate(template: Omit<MealTemplate, "id">): Promise<void> {
+  const { error } = await supabase.from("meal_templates").insert({ id: uid(), ...template });
+  if (error) throw error;
+  queryClient.invalidateQueries({ queryKey: ["mealTemplates"] });
+}
+
+export async function deleteMealTemplate(id: string): Promise<void> {
+  const { error } = await supabase.from("meal_templates").delete().eq("id", id);
+  if (error) throw error;
+  queryClient.invalidateQueries({ queryKey: ["mealTemplates"] });
 }
 
 // ── Weigh-ins ────────────────────────────────────────────────────────
@@ -607,7 +638,7 @@ export function personalRecords(workouts: Workout[]): PRRecord[] {
 
 // ── Export / Import (BUILD_SPEC §10) ────────────────────────────────
 export async function buildExport(): Promise<ExportBundle> {
-  const [profile, workouts, cardio, meals, weighIns, dailyMisc, photos, routines, measurements] =
+  const [profile, workouts, cardio, meals, weighIns, dailyMisc, photos, routines, measurements, mealTemplates] =
     await Promise.all([
       fetchProfile(),
       fetchWorkouts(),
@@ -618,6 +649,7 @@ export async function buildExport(): Promise<ExportBundle> {
       fetchProgressPhotos(),
       fetchRoutines(),
       fetchMeasurements(),
+      fetchMealTemplates(),
     ]);
   const progressPhotos: ExportedPhoto[] = await Promise.all(
     photos.map(async (p) => {
@@ -644,6 +676,7 @@ export async function buildExport(): Promise<ExportBundle> {
     progressPhotos,
     routines,
     measurements,
+    mealTemplates,
   };
 }
 
@@ -668,6 +701,7 @@ export async function importBundle(bundle: ExportBundle): Promise<void> {
     supabase.from("routines").delete().neq("id", ""),
     supabase.from("measurements").delete().neq("id", ""),
     supabase.from("daily_misc").delete().neq("date", "0001-01-01"),
+    supabase.from("meal_templates").delete().neq("id", ""),
   ]);
   for (const { error } of clears) if (error) throw error;
 
@@ -712,6 +746,9 @@ export async function importBundle(bundle: ExportBundle): Promise<void> {
             hips_cm: m.hipsCm ?? null,
           })),
         )
+      : Promise.resolve({ error: null }),
+    bundle.mealTemplates?.length
+      ? supabase.from("meal_templates").insert(bundle.mealTemplates.map((t) => ({ ...t })))
       : Promise.resolve({ error: null }),
   ]);
   for (const { error } of inserts) if (error) throw error;

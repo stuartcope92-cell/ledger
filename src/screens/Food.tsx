@@ -1,14 +1,24 @@
 // ── Food tab ───────────────────────────────────────────────────
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Check, Pencil, ScanBarcode, Trash2, Utensils, X } from "lucide-react";
+import { Bookmark, Camera, Check, Pencil, Repeat, ScanBarcode, Trash2, Utensils, X } from "lucide-react";
 import { C } from "../theme";
 import { BackBar, Btn, Card, Empty, Field } from "../components/ui";
 import { BarcodeScanner } from "../components/BarcodeScanner";
+import { UndoToast } from "../components/UndoToast";
 import { apiFoodProvider, scaleToGrams, type FoodResult } from "../services/foodProvider";
-import { addMeal, deleteMeal, updateMeal, useMeals } from "../store";
-import { todayISO } from "../utils/date";
+import {
+  addMeal,
+  addMealTemplate,
+  deleteMeal,
+  deleteMealTemplate,
+  updateMeal,
+  useMealTemplates,
+  useMeals,
+} from "../store";
+import { todayISO, yesterdayISO } from "../utils/date";
 import { compressImage } from "../utils/image";
 import { useBackClose } from "../utils/useBackClose";
+import { useUndoableDelete } from "../utils/useUndoableDelete";
 import type { Meal, MealSource } from "../types";
 
 interface TodayStats {
@@ -33,7 +43,14 @@ export function Food({
   pTarget: number;
   today: TodayStats;
 }) {
-  const meals = useMeals();
+  const allMeals = useMeals();
+  const { pendingId: pendingDeleteId, requestDelete, undo } = useUndoableDelete(deleteMeal);
+  // Hide the pending-delete meal everywhere in this screen immediately;
+  // the real delete only fires once the undo window closes.
+  const meals = useMemo(
+    () => allMeals.filter((m) => m.id !== pendingDeleteId),
+    [allMeals, pendingDeleteId],
+  );
 
   // Distinct recently-logged foods, newest first — lets a repeat meal skip
   // search entirely (BUILD_SPEC §1's "≤3 taps" rule otherwise quietly
@@ -50,6 +67,29 @@ export function Food({
     }
     return out;
   }, [meals]);
+
+  // Every meal logged yesterday, for the one-tap "Repeat yesterday" action —
+  // separate from the Recent shelf, which only ever surfaces one entry per
+  // distinct food name.
+  const yesterdaysMeals = useMemo(
+    () => allMeals.filter((m) => m.date === yesterdayISO()),
+    [allMeals],
+  );
+  const [repeatingDay, setRepeatingDay] = useState(false);
+  const repeatYesterday = async () => {
+    setRepeatingDay(true);
+    try {
+      await Promise.all(
+        yesterdaysMeals.map((m) =>
+          addMeal({ date: todayISO(), name: m.name, cal: m.cal, p: m.p, c: m.c, f: m.f, source: m.source }),
+        ),
+      );
+    } finally {
+      setRepeatingDay(false);
+    }
+  };
+
+  const templates = useMealTemplates();
 
   const [q, setQ] = useState("");
   const [results, setResults] = useState<FoodResult[]>([]);
@@ -240,6 +280,17 @@ export function Food({
     closeManual();
   };
 
+  const saveAsTemplate = async () => {
+    if (!manual.name.trim()) return;
+    await addMealTemplate({
+      name: manual.name.trim(),
+      cal: manual.cal,
+      p: manual.p,
+      c: manual.c,
+      f: manual.f,
+    });
+  };
+
   if (scanningBarcode) {
     return (
       <BarcodeScanner onDetected={handleBarcodeDetected} onCancel={() => setScanningBarcode(false)} />
@@ -367,6 +418,20 @@ export function Food({
         />
       </div>
 
+      {yesterdaysMeals.length > 0 && (
+        <Btn
+          onClick={repeatYesterday}
+          kind="ghost"
+          disabled={repeatingDay}
+          style={{ width: "100%", padding: "10px 0", fontSize: 13 }}
+        >
+          <Repeat size={14} />
+          {repeatingDay
+            ? "Adding…"
+            : `Repeat yesterday (${yesterdaysMeals.length} meal${yesterdaysMeals.length === 1 ? "" : "s"})`}
+        </Btn>
+      )}
+
       {scanError && (
         <p style={{ fontSize: 12, color: C.warn, textAlign: "center" }}>{scanError}</p>
       )}
@@ -492,9 +557,21 @@ export function Food({
               />
             </div>
           </div>
-          <Btn onClick={saveManual} disabled={!manual.name.trim()} style={{ width: "100%" }}>
-            {editingMeal ? "Save changes" : "Add meal"}
-          </Btn>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Btn onClick={saveManual} disabled={!manual.name.trim()} style={{ flex: 1 }}>
+              {editingMeal ? "Save changes" : "Add meal"}
+            </Btn>
+            {!editingMeal && (
+              <Btn
+                onClick={saveAsTemplate}
+                kind="ghost"
+                disabled={!manual.name.trim()}
+                style={{ flex: 1 }}
+              >
+                <Bookmark size={14} /> Save as template
+              </Btn>
+            )}
+          </div>
         </Card>
       )}
 
@@ -549,6 +626,81 @@ export function Food({
                 </strong>
                 <span style={{ fontSize: 11, color: C.dim }}>{m.cal} kcal</span>
               </button>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {templates.length > 0 && (
+        <Card>
+          <span style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 8 }}>
+            Templates
+          </span>
+          <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2 }}>
+            {templates.map((t) => (
+              <div
+                key={t.id}
+                style={{
+                  flex: "0 0 auto",
+                  minWidth: 110,
+                  maxWidth: 140,
+                  position: "relative",
+                  background: C.surface2,
+                  border: `1px solid ${C.line}`,
+                  borderRadius: 10,
+                  padding: 10,
+                }}
+              >
+                <button
+                  onClick={() =>
+                    openPortion(
+                      { id: `template:${t.id}`, name: t.name, serving: "same as saved", cal: t.cal, p: t.p, c: t.c, f: t.f, source: "template" },
+                      "manual",
+                    )
+                  }
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    paddingRight: 14,
+                    cursor: "pointer",
+                    color: C.text,
+                  }}
+                >
+                  <strong
+                    style={{
+                      fontSize: 13,
+                      textTransform: "capitalize",
+                      display: "block",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {t.name}
+                  </strong>
+                  <span style={{ fontSize: 11, color: C.dim }}>{t.cal} kcal</span>
+                </button>
+                <button
+                  onClick={() => deleteMealTemplate(t.id)}
+                  aria-label={`Remove ${t.name} template`}
+                  style={{
+                    position: "absolute",
+                    top: 6,
+                    right: 6,
+                    background: "none",
+                    border: "none",
+                    color: C.dim,
+                    cursor: "pointer",
+                    padding: 2,
+                    display: "flex",
+                  }}
+                >
+                  <X size={12} />
+                </button>
+              </div>
             ))}
           </div>
         </Card>
@@ -628,7 +780,7 @@ export function Food({
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ color: C.accent, fontWeight: 700 }}>{m.cal}</span>
               <button
-                onClick={() => deleteMeal(m.id)}
+                onClick={() => requestDelete(m.id)}
                 aria-label={`Delete ${m.name}`}
                 style={{ background: "none", border: "none", color: C.dim, cursor: "pointer" }}
               >
@@ -638,6 +790,8 @@ export function Food({
           </div>
         </Card>
       ))}
+
+      {pendingDeleteId && <UndoToast message="Meal deleted" onUndo={undo} />}
     </div>
   );
 }
