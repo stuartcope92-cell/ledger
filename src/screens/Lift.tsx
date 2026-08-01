@@ -15,12 +15,14 @@ import { C } from "../theme";
 import { BackBar, Btn, Card, Empty, Field, inp } from "../components/ui";
 import { RestTimer } from "../components/RestTimer";
 import { EXERCISE_LIBRARY } from "../seed";
+import { PHASE_LABEL, prescribeNext } from "../progression";
 import {
   addRoutine,
   addWorkout,
   deleteRoutine,
   deleteWorkout,
   updateWorkout,
+  useProgrammedLifts,
   useRoutines,
   useWorkouts,
 } from "../store";
@@ -45,6 +47,7 @@ const SET_TYPES: { id: SetType; label: string }[] = [
 export function Lift({ profile }: { profile: Profile }) {
   const workouts = useWorkouts();
   const routines = useRoutines();
+  const programmedLifts = useProgrammedLifts();
   const unit = unitSystemOf(profile);
   const weightLabel = weightUnitLabel(unit);
 
@@ -91,6 +94,10 @@ export function Lift({ profile }: { profile: Profile }) {
     () => workouts.find((w) => w.name === name),
     [workouts, name],
   );
+
+  // Programmed goal (optional overlay, set from Progress → Check exercise
+  // progress) — when present, this week's prescription is shown below.
+  const activeLift = programmedLifts.find((l) => l.exerciseName === name);
 
   const closeAddFlow = () => {
     setAdding(false);
@@ -272,6 +279,37 @@ export function Lift({ profile }: { profile: Profile }) {
             </div>
           </Card>
         )}
+
+        {activeLift && (() => {
+          const prescription = prescribeNext(activeLift);
+          return (
+            <Card style={{ marginBottom: 12, borderColor: C.accentDim }}>
+              <span style={{ fontSize: 12, color: C.accent, fontWeight: 600 }}>
+                Programmed — {PHASE_LABEL[prescription.phase]}
+              </span>
+              <div style={{ fontSize: 18, fontWeight: 700, margin: "6px 0 10px" }}>
+                {prescription.sets} × {prescription.reps} @ {kgToDisplay(prescription.weight, unit)}
+                {weightLabel}
+                {activeLift.type === "assisted" ? " assist" : ""}
+              </div>
+              <Btn
+                kind="ghost"
+                onClick={() =>
+                  setSets(
+                    Array.from({ length: prescription.sets }, () => ({
+                      weight: prescription.weight,
+                      reps: prescription.reps,
+                      type: "working" as const,
+                    })),
+                  )
+                }
+                style={{ padding: "6px 10px", fontSize: 12 }}
+              >
+                Use prescribed sets
+              </Btn>
+            </Card>
+          );
+        })()}
 
         {(() => {
           const targetWeightKg = Math.max(0, ...sets.map((s) => s.weight));

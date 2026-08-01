@@ -48,6 +48,33 @@ create policy "own workouts" on public.workouts for all
 grant select, insert, update, delete on public.workouts to authenticated;
 create index workouts_user_date_idx on public.workouts (user_id, date);
 
+-- One optional row per exercise the user has set a strength goal for —
+-- addWorkout() in src/store.ts advances this automatically whenever a
+-- Workout is logged for the same exercise_name, no separate logging step.
+create table public.programmed_lifts (
+  id text primary key,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  exercise_name text not null,
+  type text not null,
+  current_weight numeric not null,
+  current_reps integer not null,
+  rep_range_min integer not null,
+  rep_range_max integer not null,
+  sets integer not null,
+  progression_phase text not null default 'rep',
+  assist_levels jsonb,
+  assist_level_index integer,
+  consecutive_failures integer not null default 0,
+  target_weight numeric not null,
+  target_reps integer not null,
+  target_1rm numeric not null,
+  unique (user_id, exercise_name)
+);
+alter table public.programmed_lifts enable row level security;
+create policy "own programmed lifts" on public.programmed_lifts for all
+  using (auth.uid() = user_id) with check (auth.uid() = user_id);
+grant select, insert, update, delete on public.programmed_lifts to authenticated;
+
 create table public.cardio_sessions (
   id text primary key,
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,

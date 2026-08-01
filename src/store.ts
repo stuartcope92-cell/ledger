@@ -17,6 +17,7 @@ import { queryClient } from "./queryClient";
 import { supabase } from "./services/supabase";
 import { DEFAULT_PROFILE, TEMPLATES } from "./seed";
 import { bestSet1RM, estimated1RM } from "./formulas";
+import { evaluatePerformance, prescribeNext, updateAfterPerformance } from "./progression";
 import { todayISO } from "./utils/date";
 import { blobToDataUrl, dataUrlToBlob } from "./utils/image";
 import type {
@@ -24,10 +25,13 @@ import type {
   DailyMisc,
   ExportBundle,
   ExportedPhoto,
+  LiftType,
   Meal,
   Measurement,
   PRRecord,
   Profile,
+  ProgrammedLift,
+  ProgressionPhase,
   ProgressPhoto,
   Routine,
   SetEntry,
@@ -35,7 +39,7 @@ import type {
   Workout,
 } from "./types";
 
-const uid = (): string =>
+export const uid = (): string =>
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 async function currentUserId(): Promise<string> {
@@ -153,6 +157,7 @@ export async function addWorkout(
   const { error } = await supabase.from("workouts").insert({ id: uid(), name, sets, date, is_pr: isPR });
   if (error) throw error;
   queryClient.invalidateQueries({ queryKey: ["workouts"] });
+  await advanceProgrammedLift(name, sets);
   return isPR;
 }
 
@@ -222,6 +227,100 @@ export async function ensureDefaultRoutines(): Promise<void> {
   const { error: insertErr } = await supabase.from("routines").insert(seeds);
   if (insertErr) throw insertErr;
   queryClient.invalidateQueries({ queryKey: ["routines"] });
+}
+
+// ── Programmed lifts (optional per-exercise auto-progression + goal) ───
+interface ProgrammedLiftRow {
+  id: string;
+  exercise_name: string;
+  type: string;
+  current_weight: number;
+  current_reps: number;
+  rep_range_min: number;
+  rep_range_max: number;
+  sets: number;
+  progression_phase: string;
+  assist_levels: number[] | null;
+  assist_level_index: number | null;
+  consecutive_failures: number;
+  target_weight: number;
+  target_reps: number;
+  target_1rm: number;
+}
+
+const rowToProgrammedLift = (r: ProgrammedLiftRow): ProgrammedLift => ({
+  id: r.id,
+  exerciseName: r.exercise_name,
+  type: r.type as LiftType,
+  currentWeight: r.current_weight,
+  currentReps: r.current_reps,
+  repRangeMin: r.rep_range_min,
+  repRangeMax: r.rep_range_max,
+  sets: r.sets,
+  progressionPhase: r.progression_phase as ProgressionPhase,
+  assistLevels: r.assist_levels ?? undefined,
+  assistLevelIndex: r.assist_level_index ?? undefined,
+  consecutiveFailures: r.consecutive_failures,
+  targetWeight: r.target_weight,
+  targetReps: r.target_reps,
+  target1RM: r.target_1rm,
+});
+
+const programmedLiftToRow = (l: ProgrammedLift) => ({
+  id: l.id,
+  exercise_name: l.exerciseName,
+  type: l.type,
+  current_weight: l.currentWeight,
+  current_reps: l.currentReps,
+  rep_range_min: l.repRangeMin,
+  rep_range_max: l.repRangeMax,
+  sets: l.sets,
+  progression_phase: l.progressionPhase,
+  assist_levels: l.assistLevels ?? null,
+  assist_level_index: l.assistLevelIndex ?? null,
+  consecutive_failures: l.consecutiveFailures,
+  target_weight: l.targetWeight,
+  target_reps: l.targetReps,
+  target_1rm: l.target1RM,
+});
+
+async function fetchProgrammedLifts(): Promise<ProgrammedLift[]> {
+  const { data, error } = await supabase.from("programmed_lifts").select("*");
+  if (error) throw error;
+  return (data ?? []).map(rowToProgrammedLift);
+}
+
+export const useProgrammedLifts = (): ProgrammedLift[] =>
+  useQuery({ queryKey: ["programmedLifts"], queryFn: fetchProgrammedLifts }).data ?? [];
+
+export async function saveProgrammedLift(lift: ProgrammedLift): Promise<void> {
+  const { error } = await supabase.from("programmed_lifts").upsert(programmedLiftToRow(lift));
+  if (error) throw error;
+  queryClient.invalidateQueries({ queryKey: ["programmedLifts"] });
+}
+
+export async function deleteProgrammedLift(id: string): Promise<void> {
+  const { error } = await supabase.from("programmed_lifts").delete().eq("id", id);
+  if (error) throw error;
+  queryClient.invalidateQueries({ queryKey: ["programmedLifts"] });
+}
+
+// If this exercise has an active goal, evaluate the just-logged session
+// against its current prescription and advance its progression state —
+// derived automatically from the sets just saved, no separate "did you hit
+// it?" step for the user.
+async function advanceProgrammedLift(exerciseName: string, sets: SetEntry[]): Promise<void> {
+  const { data, error } = await supabase
+    .from("programmed_lifts")
+    .select("*")
+    .eq("exercise_name", exerciseName)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return;
+  const lift = rowToProgrammedLift(data as ProgrammedLiftRow);
+  const prescription = prescribeNext(lift);
+  const performance = evaluatePerformance(sets, prescription);
+  await saveProgrammedLift(updateAfterPerformance(lift, prescription, performance));
 }
 
 // ── Cardio ───────────────────────────────────────────────────────────

@@ -99,6 +99,46 @@ export interface PRRecord {
   date: string;
 }
 
+// ── Programmed lifts (optional per-exercise auto-progression + goal) ───
+// Opt-in overlay on an existing exercise: plain ad-hoc logging (Workout)
+// still works for everything, programmed or not. One row per exercise the
+// user has set a goal for.
+export type LiftType = "compound" | "assisted";
+export type ProgressionPhase = "rep" | "tempo" | "volume" | "weight_jump";
+
+export interface ProgrammedLift {
+  id: string;
+  exerciseName: string; // matches Workout.name / EXERCISE_LIBRARY
+  type: LiftType;
+  currentWeight: number; // kg; for assisted, the current assist value
+  currentReps: number;
+  repRangeMin: number;
+  repRangeMax: number;
+  sets: number;
+  progressionPhase: ProgressionPhase;
+  assistLevels?: number[]; // assisted only, descending, must end in 0
+  assistLevelIndex?: number; // index into assistLevels — source of truth, not a currentWeight equality match
+  consecutiveFailures: number;
+  targetWeight: number; // 0 for assisted (fully unassisted is the goal)
+  targetReps: number;
+  target1RM: number; // computed once at goal-set time; unused for assisted
+}
+
+// This week's prescribed weight/reps/sets for a programmed lift — a pure
+// function of ProgrammedLift, never persisted on its own.
+export interface Prescription {
+  weight: number;
+  reps: number;
+  sets: number;
+  phase: ProgressionPhase;
+  assistLevelIndex?: number; // assisted only — internal bookkeeping, not shown in UI
+}
+
+export interface PerformanceResult {
+  success: boolean; // hit every prescribed set's reps
+  exceeded: boolean; // beat the prescribed reps on at least one set
+}
+
 export interface ProgressPhoto {
   id: string;
   date: string; // ISO yyyy-mm-dd — editable at save time, defaults to today
