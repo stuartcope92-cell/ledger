@@ -74,6 +74,11 @@ async function recognizeLogMeal(buf, mime) {
       id: `logmeal:${top.id || i}`,
       name: top.name || it.name || "Detected food",
       serving: "1 portion (estimate)",
+      // LogMeal doesn't return a weight for the recognised portion — default
+      // to 100g so the client can still offer an editable amount instead of
+      // a dead end, flagged as a guess rather than a real serving size.
+      grams: 100,
+      gramsIsEstimate: true,
       cal: num(totals.calories ?? totals.energy),
       p: num(t.PROCNT?.quantity),
       c: num(t.CHOCDF?.quantity),
@@ -101,13 +106,15 @@ async function recognizeFoodvisor(buf, mime) {
     for (const f of item.food || []) {
       const info = f.food_info || {};
       const nut = info.nutrition || {};
-      const grams = num(f.quantity) || num(info.g_per_serving) || 100;
+      const realGrams = num(f.quantity) || num(info.g_per_serving) || undefined;
+      const grams = realGrams ?? 100;
       const k = grams / 100;
       out.push(tidy(ensureCalories({
         id: `foodvisor:${info.food_id || info.display_name}`,
         name: info.display_name || "Detected food",
         serving: `${grams} g (estimate)`,
         grams,
+        gramsIsEstimate: realGrams === undefined,
         cal: num(nut.calories_100g) * k,
         p: num(nut.proteins_100g) * k,
         c: num(nut.carbs_100g) * k,
@@ -155,7 +162,10 @@ const GEMINI_SCHEMA = {
           f: { type: "number" },
           confidence: { type: "number" },
         },
-        required: ["name", "serving", "cal", "p", "c", "f", "confidence"],
+        // grams is required (not just cal/p/c/f) so the portion editor
+        // always has a real number to scale from — otherwise it's a coin
+        // flip whether the model bothers to fill in an optional field.
+        required: ["name", "serving", "grams", "cal", "p", "c", "f", "confidence"],
       },
     },
   },
@@ -196,18 +206,23 @@ async function recognizeGemini(buf, mime) {
   const items = JSON.parse(text).items;
   if (!Array.isArray(items)) return [];
 
-  return items.slice(0, 5).map((it, i) =>
-    tidy(ensureCalories({
+  return items.slice(0, 5).map((it, i) => {
+    // The schema requires grams, but a model can still misbehave — fall
+    // back the same way the other providers do rather than losing the
+    // ability to adjust portion size entirely.
+    const realGrams = it.grams ? num(it.grams) : undefined;
+    return tidy(ensureCalories({
       id: `gemini:${i}-${(it.name || "food").toLowerCase().replace(/\s+/g, "-")}`,
       name: it.name || "Detected food",
       serving: it.serving || "1 portion (estimate)",
-      grams: it.grams ? num(it.grams) : undefined,
+      grams: realGrams ?? 100,
+      gramsIsEstimate: realGrams === undefined,
       cal: num(it.cal),
       p: num(it.p),
       c: num(it.c),
       f: num(it.f),
       source: "gemini",
       confidence: num(it.confidence, 0.5),
-    })),
-  );
+    }));
+  });
 }

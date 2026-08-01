@@ -17,13 +17,29 @@ const UA = "LedgerApp/1.0 (calorie tracker; contact: you@example.com)";
 // bizarre 13,000+ kcal "food". Reject rather than guess at a correction.
 const MAX_PLAUSIBLE_CAL_PER_100G = 900;
 
+// OFF's structured serving_quantity is very often empty even when the
+// free-text serving_size clearly states an amount ("1 bar (40 g)",
+// "250ml") — pull that out rather than falling straight back to a generic
+// (and usually wrong) 100g default.
+function parseGramsFromServingSize(servingSize) {
+  if (!servingSize) return undefined;
+  const match = String(servingSize).match(/(\d+(?:\.\d+)?)\s*(g|ml)\b/i);
+  return match ? parseFloat(match[1]) : undefined;
+}
+
 function mapProduct(p) {
   const n = p.nutriments || {};
   const cal100 = num(n["energy-kcal_100g"]);
   if (cal100 <= 0 || cal100 > MAX_PLAUSIBLE_CAL_PER_100G) return null;
 
   // Report per 100 g by default (OFF's canonical basis), plus serving if present.
-  const grams = num(p.serving_quantity) || 100;
+  const structuredGrams = num(p.serving_quantity) || undefined;
+  const parsedGrams = structuredGrams ? undefined : parseGramsFromServingSize(p.serving_size);
+  const grams = structuredGrams ?? parsedGrams ?? 100;
+  // Neither OFF's own structured field nor its free-text serving_size gave
+  // us a real amount — 100g here is a placeholder, not this product's
+  // actual serving, so the client should say so rather than imply it knows.
+  const gramsIsEstimate = structuredGrams == null && parsedGrams == null;
   const scaled = per100gToServing({
     cal100,
     p100: num(n.proteins_100g),
@@ -43,6 +59,7 @@ function mapProduct(p) {
     brand: p.brands ? p.brands.split(",")[0].trim() : undefined,
     serving,
     grams,
+    gramsIsEstimate: gramsIsEstimate || undefined,
     ...scaled,
     source: "openfoodfacts",
   });

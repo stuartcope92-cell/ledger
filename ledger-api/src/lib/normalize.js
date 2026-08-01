@@ -7,6 +7,8 @@
 //   brand:      string?  brand if known
 //   serving:    string   human-readable serving ("100 g", "1 medium (118 g)")
 //   grams:      number?  serving weight in grams when known (for scaling)
+//   gramsIsEstimate: boolean?  true when grams is a generic fallback, not
+//                              this product's real serving size
 //   cal:        number   kcal for the stated serving
 //   p, c, f:    number   protein / carbs / fat in grams for the stated serving
 //   source:     string   provider id

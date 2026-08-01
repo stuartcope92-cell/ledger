@@ -11,7 +11,7 @@
 // is what actually makes that cleanup fire. skipWaiting()/clients.claim()
 // below mean a bump takes effect on the very next reload, not after an
 // uninstall/reinstall.
-const CACHE = "ledger-shell-v2";
+const CACHE = "ledger-shell-v3";
 const APP_SHELL = ["./", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", (event) => {

@@ -8,6 +8,11 @@ export interface FoodResult {
   brand?: string;
   serving: string;
   grams?: number;
+  // True when `grams` is a generic 100g fallback rather than the product's
+  // actual serving size (OFF had neither a structured serving_quantity nor
+  // a parseable amount in its free-text serving_size) — lets the UI say so
+  // instead of presenting a guess as fact.
+  gramsIsEstimate?: boolean;
   cal: number;
   p: number;
   c: number;

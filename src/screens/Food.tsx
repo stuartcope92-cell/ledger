@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Bookmark, Camera, Check, Pencil, Repeat, ScanBarcode, Trash2, Utensils, X } from "lucide-react";
 import { C } from "../theme";
-import { BackBar, Btn, Card, Empty, Field } from "../components/ui";
+import { BackBar, Btn, Card, Empty, Field, inp } from "../components/ui";
 import { BarcodeScanner } from "../components/BarcodeScanner";
 import { UndoToast } from "../components/UndoToast";
 import { apiFoodProvider, scaleToGrams, type FoodResult } from "../services/foodProvider";
@@ -309,12 +309,54 @@ export function Food({
 
           {hasGrams(portion.item) ? (
             <div style={{ marginTop: 12 }}>
+              {!portion.item.gramsIsEstimate && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 10,
+                  }}
+                >
+                  <span style={{ fontSize: 12, color: C.dim }}>
+                    Servings ({portion.item.serving})
+                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <button
+                      onClick={() =>
+                        setPortionGrams((g) => Math.max(0, g - portion.item.grams!))
+                      }
+                      aria-label="Remove one serving"
+                      style={{ ...inp, width: 28, height: 28, padding: 0, cursor: "pointer" }}
+                    >
+                      −
+                    </button>
+                    <span style={{ fontSize: 14, fontWeight: 600, minWidth: 24, textAlign: "center" }}>
+                      {(Math.round((portionGrams / portion.item.grams!) * 100) / 100)
+                        .toString()
+                        .replace(/\.?0+$/, "") || "0"}
+                    </span>
+                    <button
+                      onClick={() => setPortionGrams((g) => g + portion.item.grams!)}
+                      aria-label="Add one serving"
+                      style={{ ...inp, width: 28, height: 28, padding: 0, cursor: "pointer" }}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              )}
               <Field
                 label="Portion (grams)"
                 type="number"
                 value={portionGrams}
                 onChange={(e) => setPortionGrams(Math.max(0, +e.target.value))}
               />
+              {portion.item.gramsIsEstimate && (
+                <p style={{ fontSize: 11, color: C.dim, marginTop: 6, marginBottom: 0 }}>
+                  Serving size not listed for this product — enter the amount you actually had.
+                </p>
+              )}
             </div>
           ) : (
             <div style={{ fontSize: 12, color: C.dim, marginTop: 12 }}>
