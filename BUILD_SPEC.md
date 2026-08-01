@@ -1,12 +1,23 @@
 # Ledger — Build Specification
 
-A simple, no-fuss gym & nutrition tracker. **No social features, no accounts, no feeds.** Clean, fast, private. This document is the source of truth for building the production app. A working single-file React prototype (`gym-tracker.jsx`) already exists and defines the intended look, layout, and logic — treat it as the visual and behavioural reference, then re-architect it properly per the structure below.
+> **Doc drift note:** this spec was written for a local-only, no-accounts app
+> (see §1 below). The shipped app has since moved to required accounts
+> (Supabase email/password) with data in per-user Supabase Postgres +
+> Storage instead of on-device SQLite/IndexedDB — see `PROJECT_STATUS.md`
+> for current reality. The rest of this document (design system, formulas,
+> screens, seed content) still reflects what's built; only the "no accounts,
+> on-device" framing below is out of date.
+
+A simple, no-fuss gym & nutrition tracker. **No social features, no feeds.** Clean, fast, private. This document is the source of truth for building the production app. A working single-file React prototype (`gym-tracker.jsx`) already exists and defines the intended look, layout, and logic — treat it as the visual and behavioural reference, then re-architect it properly per the structure below.
 
 ---
 
 ## 1. Goal & Principles
 
-- **One user, on-device.** No login, no server-side accounts. All data lives on the device.
+- ~~**One user, on-device.** No login, no server-side accounts. All data lives on the device.~~
+  **Superseded:** required accounts (Supabase email/password), data lives in
+  per-user Supabase Postgres + Storage, protected by Row-Level Security. See
+  `PROJECT_STATUS.md` for the current architecture and why this changed.
 - **Fast to log.** Every core action (log a set, add a meal, record cardio) should take ≤3 taps.
 - **Honest numbers.** Calorie/TDEE math is transparent and explained in-app; never present estimates as exact.
 - **Minimal surface.** Six tabs, no settings sprawl. If a feature needs a manual, cut it.
@@ -24,7 +35,7 @@ A simple, no-fuss gym & nutrition tracker. **No social features, no accounts, no
 - **Icons:** `lucide-react-native`.
 - **Dates:** `date-fns`.
 
-If the target is a **web app instead of native**, swap to Vite + React + TypeScript, Dexie.js (IndexedDB) for persistence, and keep everything else.
+If the target is a **web app instead of native**, swap to Vite + React + TypeScript, Dexie.js (IndexedDB) for persistence, and keep everything else. **(This is the path actually taken.)** ~~Dexie/IndexedDB~~ was later replaced with Supabase Postgres + Storage per-user (accounts architecture, see the doc-drift note at the top of this file) — `src/db.ts` deleted, `src/store.ts` rewritten against Supabase + `@tanstack/react-query`.
 
 **Installable (web build):** a manifest + minimal offline-app-shell service worker (`public/manifest.webmanifest`, `public/sw.js`, registered from `main.tsx`) makes the web build "Add to Home Screen"-able with its own icon, and lets the shell load offline after a first visit. No server, no account — purely a packaging change. The service worker only registers in production builds (`import.meta.env.PROD`); it deliberately doesn't run under `vite dev`, since caching responses fights Vite's HMR.
 
@@ -293,4 +304,6 @@ Keep API keys in environment config, never in the client bundle for a shipped ap
 - Meals, workouts, and cardio sessions can be edited in place, not just deleted and re-added.
 - Export produces valid JSON that Import restores exactly; CSV export covers the common "open it in a spreadsheet" case separately.
 - Web build installs to a home screen and its shell loads offline after a first visit.
-- No account, no network calls except the food provider, no analytics/tracking.
+- ~~No account, no network calls except the food provider, no analytics/tracking.~~
+  **Superseded:** account required (Supabase auth); network calls now also
+  include Supabase Postgres/Storage sync. Still no analytics/tracking.
