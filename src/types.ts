@@ -16,7 +16,8 @@ export interface Profile {
   weightKg: number; // current; also the latest weigh-in
   sex: Sex;
   activity: ActivityLevel;
-  mode: GoalMode;
+  mode: GoalMode; // manual selection; ignored once targetWeightKg is set (see effectiveMode)
+  targetWeightKg?: number; // optional goal weight; when set, auto-derives mode instead of the manual toggle
   proteinGoalG?: number; // manual override; falls back to 1.8g/kg when unset
   unitSystem?: UnitSystem; // display only — undefined = metric; storage always kg/cm
 }

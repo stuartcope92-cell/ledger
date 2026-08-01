@@ -36,6 +36,20 @@ export function targetCalories(maintenance: number, mode: GoalMode): number {
   return maintenance;
 }
 
+// Within this band of the goal weight counts as "maintain" rather than
+// deficit/surplus, to absorb normal day-to-day water-weight fluctuation.
+export const GOAL_MAINTAIN_BAND_KG = 0.5;
+
+// The mode actually used for the calorie target: auto-derived from
+// targetWeightKg vs current weight when a goal is set (overriding the
+// manual toggle), else the manual mode.
+export function effectiveMode(profile: Profile): GoalMode {
+  if (profile.targetWeightKg == null) return profile.mode;
+  const diff = profile.targetWeightKg - profile.weightKg;
+  if (Math.abs(diff) <= GOAL_MAINTAIN_BAND_KG) return "maintain";
+  return diff < 0 ? "deficit" : "surplus";
+}
+
 // Protein target — 1.8 g per kg bodyweight (rounded).
 export const proteinTarget = (weightKg: number): number =>
   Math.round(weightKg * 1.8);

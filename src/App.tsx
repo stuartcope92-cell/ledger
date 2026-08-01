@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { C } from "./theme";
 import { queryClient } from "./queryClient";
-import { effectiveProteinTarget, targetCalories, tdee } from "./formulas";
+import { effectiveMode, effectiveProteinTarget, targetCalories, tdee } from "./formulas";
 import { inRange } from "./utils/date";
 import { useBackClose } from "./utils/useBackClose";
 import { useSession } from "./utils/useSession";
@@ -76,7 +76,7 @@ export default function App() {
   const todayMisc = useDailyMisc();
 
   const maintenance = tdee(profile);
-  const goal = targetCalories(maintenance, profile.mode);
+  const goal = targetCalories(maintenance, effectiveMode(profile));
   const pTarget = effectiveProteinTarget(profile);
 
   // Today's totals — drive the Food remaining figure and the protein gauge.

@@ -55,6 +55,7 @@ interface ProfileRow {
   sex: string;
   activity: string;
   mode: string;
+  target_weight_kg: number | null;
   protein_goal_g: number | null;
   unit_system: string | null;
 }
@@ -67,6 +68,7 @@ const rowToProfile = (r: ProfileRow): Profile => ({
   sex: r.sex as Profile["sex"],
   activity: r.activity as Profile["activity"],
   mode: r.mode as Profile["mode"],
+  targetWeightKg: r.target_weight_kg ?? undefined,
   proteinGoalG: r.protein_goal_g ?? undefined,
   unitSystem: (r.unit_system ?? undefined) as Profile["unitSystem"],
 });
@@ -79,6 +81,7 @@ const profileToRow = (p: Profile) => ({
   sex: p.sex,
   activity: p.activity,
   mode: p.mode,
+  target_weight_kg: p.targetWeightKg ?? null,
   protein_goal_g: p.proteinGoalG ?? null,
   unit_system: p.unitSystem ?? null,
 });

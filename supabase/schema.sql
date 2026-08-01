@@ -25,6 +25,7 @@ create table public.profiles (
   sex text not null default 'male',
   activity text not null default 'Moderate',
   mode text not null default 'maintain',
+  target_weight_kg numeric,
   protein_goal_g numeric,
   unit_system text
 );

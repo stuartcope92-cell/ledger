@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { Download, Droplet, FileSpreadsheet, Footprints, LogOut, Ruler, Upload } from "lucide-react";
 import { C } from "../theme";
 import { Btn, Card, Field, Row, inp } from "../components/ui";
-import { ACTIVITY, bmi, proteinTarget } from "../formulas";
+import { ACTIVITY, bmi, effectiveMode, proteinTarget } from "../formulas";
 import { supabase } from "../services/supabase";
 import {
   buildExport,
@@ -58,6 +58,10 @@ export function Profile({
 
   const bmiVal = bmi(profile.weightKg, profile.heightCm).toFixed(1);
   const autoProtein = proteinTarget(profile.weightKg);
+
+  const hasGoal = profile.targetWeightKg != null;
+  const autoMode = effectiveMode(profile);
+  const goalDiffKg = hasGoal ? profile.targetWeightKg! - profile.weightKg : 0;
 
   const exportData = async () => {
     const bundle = await buildExport();
@@ -203,6 +207,35 @@ export function Profile({
           value={kgToDisplay(profile.weightKg, unit)}
           onChange={(e) => update({ weightKg: displayToKg(+e.target.value, unit) })}
         />
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+            <span style={{ fontSize: 12, color: C.dim }}>Target weight ({weightLabel}) — optional</span>
+            {hasGoal && (
+              <button
+                onClick={() => update({ targetWeightKg: undefined })}
+                style={{ background: "none", border: "none", color: C.protein, fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0 }}
+              >
+                Clear goal
+              </button>
+            )}
+          </div>
+          <input
+            type="number"
+            aria-label={`Target weight in ${weightLabel}`}
+            placeholder="Not set — mode is manual"
+            value={hasGoal ? kgToDisplay(profile.targetWeightKg!, unit) : ""}
+            onChange={(e) => {
+              const v = e.target.value;
+              update({ targetWeightKg: v === "" ? undefined : displayToKg(+v, unit) });
+            }}
+            style={inp}
+          />
+          <span style={{ fontSize: 11, color: C.dim, display: "block", marginTop: 6 }}>
+            {hasGoal
+              ? `Goal mode below is set automatically from this — ${Math.abs(kgToDisplay(goalDiffKg, unit)).toFixed(1)} ${weightLabel} to ${goalDiffKg < 0 ? "lose" : "gain"}.`
+              : "Set a target to auto-pick deficit/maintain/surplus below; leave blank to choose manually."}
+          </span>
+        </div>
         <span style={{ fontSize: 12, color: C.dim, display: "block", marginBottom: 6 }}>
           Sex (for BMR accuracy)
         </span>
@@ -265,8 +298,29 @@ export function Profile({
           <span style={{ fontSize: 18, fontWeight: 700 }}>{maintenance} kcal</span>
         </div>
         <span style={{ fontSize: 12, color: C.dim, display: "block", margin: "12px 0 6px" }}>
-          Goal mode
+          Goal mode{hasGoal ? " (auto, from target weight)" : ""}
         </span>
+        {hasGoal ? (
+          (() => {
+            const [, lbl, col] = MODE_BUTTONS.find(([m]) => m === autoMode)!;
+            return (
+              <div
+                style={{
+                  padding: "10px 4px",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  textAlign: "center",
+                  border: `1px solid ${col}`,
+                  background: col,
+                  color: C.onAccent,
+                }}
+              >
+                {lbl}
+              </div>
+            );
+          })()
+        ) : (
         <div style={{ display: "flex", gap: 6 }}>
           {MODE_BUTTONS.map(([m, lbl, col]) => (
             <button
@@ -289,6 +343,7 @@ export function Profile({
             </button>
           ))}
         </div>
+        )}
         <div style={{ textAlign: "center", marginTop: 12 }}>
           <span style={{ fontSize: 12, color: C.dim }}>Daily target</span>
           <div style={{ fontSize: 26, fontWeight: 700, color: C.accent }}>{goal} kcal</div>
@@ -452,9 +507,10 @@ export function Profile({
       </Card>
 
       <p style={{ fontSize: 11, color: C.dim, textAlign: "center", lineHeight: 1.5 }}>
-        Everything is stored on this device only. No account, no tracking.
-        Export is a full JSON backup; Import restores it exactly. CSVs are for
-        opening a table in a spreadsheet, not for restoring.
+        Your data is private to your account, stored securely and never
+        shared. No tracking. Export is a full JSON backup; Import restores it
+        exactly. CSVs are for opening a table in a spreadsheet, not for
+        restoring.
       </p>
     </div>
   );
