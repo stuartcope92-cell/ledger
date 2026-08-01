@@ -20,7 +20,22 @@ pieces:
 
 ## Recently completed (most recent first)
 
-1. **`COMPETITIVE_REVIEW.md` buckets 1 & 2, shipped** — all 4 "quick wins"
+1. **Clearer serving sizes (search, barcode, photo scan) + stale-PWA-cache
+   fix** — OFF (search + barcode) frequently lacked structured serving
+   data and silently defaulted to a generic 100g; now parses a real gram/
+   ml amount out of OFF's free-text `serving_size` first ("1 bar (40 g)" →
+   40g), flagging a true fallback with a new `gramsIsEstimate` field
+   instead of presenting a guess as fact (verified against live OFF data).
+   Same fix on the photo side: Gemini's `grams` is now a required schema
+   field (was optional, often omitted), Foodvisor/LogMeal get the same
+   flagging (LogMeal previously returned no weight at all — a dead end).
+   Food tab: a Servings +/− stepper appears above the grams field when the
+   serving size is real; a plain "not listed" note otherwise. Also bumped
+   the service worker cache (`ledger-shell-v2` → `v3`) — likely why the
+   lift-goals feature wasn't appearing despite being live and pushed;
+   nothing had forced installed PWAs to drop cached JS since before this
+   session's work shipped.
+2. **`COMPETITIVE_REVIEW.md` buckets 1 & 2, shipped** — all 4 "quick wins"
    and 4 of 5 "fits the philosophy" items (Apple Health/Google Fit import
    dropped as infeasible for a PWA — no HealthKit web API, Google Fit's API
    is deprecated). Bucket 3 (rejected ideas) stays rejected per your call.
@@ -58,7 +73,7 @@ pieces:
    simulations before wiring into the UI. **Pushed (`7816e7c`) and live** —
    `routines.linked` and `meal_templates` migrations run against the live
    Supabase project, Vercel build confirmed green off this commit.
-2. **Milk search + photo-scan multi-item bugfixes** — OFF's free-text search
+3. **Milk search + photo-scan multi-item bugfixes** — OFF's free-text search
    is genuinely unreliable for "milk" (confirmed directly against their API:
    even a wide result pool ranks branded/flavoured products above plain
    milk, and larger page sizes started tripping OFF's own "temporarily
@@ -69,7 +84,7 @@ pieces:
    photo would lose "milk" the moment "cereal" was saved) — `saveScaled()`
    now removes only the saved candidate. Pushed as `102171c` and confirmed
    deployed (Vercel dashboard shows it Ready/Production).
-3. **Programmed lift goals** — optional per-exercise auto-progression overlay
+4. **Programmed lift goals** — optional per-exercise auto-progression overlay
    on top of plain logging. Set a strength goal (compound: target weight ×
    reps; assisted: an assist-level ladder down to 0) from Progress → Check
    exercise progress; the Lift tab add-flow then shows that week's prescribed
@@ -81,15 +96,15 @@ pieces:
    matching). New `programmed_lifts` Supabase table (migration already run
    live). Core algorithm in `src/progression.ts`, verified with a standalone
    simulation before wiring into the UI.
-4. **Target-weight goal auto-picks calorie mode** — optional target weight on
+5. **Target-weight goal auto-picks calorie mode** — optional target weight on
    the You tab (`profile.targetWeightKg`) auto-derives deficit/maintain/
    surplus by comparing target vs current weight (±0.5kg counts as
    maintain), overriding the manual toggle while a goal is active; clearing
    it reverts to manual. `effectiveMode()` in `src/formulas.ts`. New
    `target_weight_kg` column on `profiles` (migration already run live).
-5. **Tightened `ledger-api` CORS** — `ALLOWED_ORIGIN` set in Vercel's
+6. **Tightened `ledger-api` CORS** — `ALLOWED_ORIGIN` set in Vercel's
    production env vars to `https://ledger-lovat-eight.vercel.app` (was `*`).
-6. **Accounts Phase 2** — migrated every entity (profile, workouts, cardio,
+7. **Accounts Phase 2** — migrated every entity (profile, workouts, cardio,
    meals, weigh-ins, daily misc, routines, measurements, progress photos) off
    local IndexedDB (Dexie) onto per-user Supabase Postgres + Storage, protected
    by Row-Level Security. `src/db.ts` deleted; `src/store.ts` rewritten
@@ -98,11 +113,11 @@ pieces:
    key so all mounted hooks refetch together). **Pushed to `origin/main`
    (`b86e21b`)**. Verified on mobile: account creation works, all tabs render
    correctly.
-7. **Accounts Phase 1** — Supabase email/password auth gate (`src/screens/Login.tsx`,
+8. **Accounts Phase 1** — Supabase email/password auth gate (`src/screens/Login.tsx`,
    `src/utils/useSession.ts`, `src/services/supabase.ts`). Google/Apple OAuth
    was originally planned but dropped (Apple Developer Program's $99/yr
    wasn't worth it at this stage) — email/password only. Pushed and live.
-8. **Food API fixes** — `ledger-api` deployed as its own Vercel project;
+9. **Food API fixes** — `ledger-api` deployed as its own Vercel project;
    fixed a broken `VITE_API_URL` (was hardcoded to `localhost:3001` in a
    committed `.env`); added Gemini as a free-tier photo-recognition provider
    (LogMeal/Foodvisor are paid-only) — model pinned to the self-updating
@@ -110,18 +125,18 @@ pieces:
    mid-build; fixed meal photos not compressing before upload (Vercel's
    serverless functions reject bodies over 4.5MB, real phone photos often
    exceed that).
-9. **Mobile UX fixes** — hardware/gesture back button now closes the current
+10. **Mobile UX fixes** — hardware/gesture back button now closes the current
    view instead of exiting the app (`src/utils/useBackClose.ts`, a shared
    history-stack hook wired into every stacked screen); fixed the Lift tab
    showing a redundant exercise picker + a non-functional-looking plate
    calculator when logging from an active routine session (now hides the
    picker and prefills sets from exercise history); bumped the service
    worker's cache version to stop installed PWAs running stale JS.
-10. **"Fits the philosophy" batch** — Metric/Imperial unit toggle, muscle-group
+11. **"Fits the philosophy" batch** — Metric/Imperial unit toggle, muscle-group
    tags + weekly volume breakdown, set types (warm-up/working/drop/failure) +
    RPE, plate calculator + warm-up ladder, body measurements (waist/chest/
    arms/hips).
-11. **"Quick wins" batch** (earlier) — Recent-foods shelf, edit-in-place for
+12. **"Quick wins" batch** (earlier) — Recent-foods shelf, edit-in-place for
    meals/workouts/cardio, CSV export, installable PWA.
 
 ## Key decisions (full detail in Claude's memory — see files linked)
@@ -148,9 +163,16 @@ file for current architecture.
 
 ## Next steps (in rough priority order)
 
-1. **Privacy policy / legal review** before any public launch — not something
+1. **If lift goals still don't show after this deploy**: the SW cache bump
+   (`v2`→`v3`) should force an installed PWA to drop stale JS on next
+   reload, but if not — try a hard refresh, or uninstall/reinstall the
+   home-screen app, before assuming it's a code issue. Lives at
+   Progress → "Check exercise progress" → pick an exercise → "Set a goal"
+   (not the Lift tab directly, unless a goal's already active for that
+   exercise — then it shows there too).
+2. **Privacy policy / legal review** before any public launch — not something
    Claude can do; a real lawful-basis/consent/data-rights review.
-2. `COMPETITIVE_REVIEW.md` buckets 1 & 2 are now fully shipped (bucket 3
+3. `COMPETITIVE_REVIEW.md` buckets 1 & 2 are now fully shipped (bucket 3
    stays rejected). Nothing queued from it currently.
 
 **Decided against**: Google/Apple OAuth. Email/password via Supabase is the
