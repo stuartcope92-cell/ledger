@@ -52,9 +52,19 @@ export function Food({
     [allMeals, pendingDeleteId],
   );
 
+  // The logged-meal list below is today's only. Older meals stay stored
+  // (and still count toward Progress trends, exports, and the Recent shelf)
+  // — they just don't clutter today's list, which would otherwise disagree
+  // with the today-scoped calories-remaining figure at the top of the tab.
+  const todaysMeals = useMemo(
+    () => meals.filter((m) => m.date === todayISO()),
+    [meals],
+  );
+
   // Distinct recently-logged foods, newest first — lets a repeat meal skip
   // search entirely (BUILD_SPEC §1's "≤3 taps" rule otherwise quietly
-  // breaks for anything eaten regularly).
+  // breaks for anything eaten regularly). Deliberately spans every day, not
+  // just today — re-logging a regular food is the whole point.
   const recentFoods = useMemo(() => {
     const seen = new Set<string>();
     const out: typeof meals = [];
@@ -797,10 +807,15 @@ export function Food({
         )}
       </Card>
 
-      {meals.length === 0 && (
-        <Empty icon={Utensils} msg="No meals logged. Scan, search or add manually." />
+      {todaysMeals.length === 0 && (
+        <Empty icon={Utensils} msg="Nothing logged today. Scan, search or add manually." />
       )}
-      {meals.map((m) => (
+      {todaysMeals.length > 0 && (
+        <span style={{ fontSize: 13, fontWeight: 600, color: C.dim }}>
+          Today · {todaysMeals.length} item{todaysMeals.length === 1 ? "" : "s"}
+        </span>
+      )}
+      {todaysMeals.map((m) => (
         <Card key={m.id}>
           <div
             style={{
