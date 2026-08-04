@@ -121,13 +121,23 @@ export function Lift({ profile }: { profile: Profile }) {
   // not persisted, just a convenience queue over the existing log flow).
   const [session, setSession] = useState<Session | null>(null);
 
+  // The logged-workout list at the bottom of this tab is today's only.
+  // Older sessions stay stored and still feed the "beat this" overload
+  // hint, the set prefill, programmed-lift progression, Progress trends,
+  // PRs and exports — they just don't pile up under today, which
+  // otherwise made a fresh day look like it already had work logged.
+  const todaysWorkouts = useMemo(() => {
+    const today = todayISO();
+    return workouts.filter((w) => w.date === today);
+  }, [workouts]);
+
   // Session "done" reflects what's actually been logged today, not a
   // per-visit flag — re-entering the same routine later still shows
   // exercises you already did.
-  const doneToday = useMemo(() => {
-    const today = todayISO();
-    return new Set(workouts.filter((w) => w.date === today).map((w) => w.name));
-  }, [workouts]);
+  const doneToday = useMemo(
+    () => new Set(todaysWorkouts.map((w) => w.name)),
+    [todaysWorkouts],
+  );
 
   const filtered = EXERCISE_LIBRARY.filter((e) =>
     e.toLowerCase().includes(query.toLowerCase()),
@@ -846,10 +856,15 @@ export function Lift({ profile }: { profile: Profile }) {
           ))
         )}
       </Card>
-      {workouts.length === 0 && (
-        <Empty icon={Dumbbell} msg="No lifts yet. Tap to log or start a routine." />
+      {todaysWorkouts.length === 0 && (
+        <Empty icon={Dumbbell} msg="Nothing logged today. Tap to log or start a routine." />
       )}
-      {workouts.map((w) => (
+      {todaysWorkouts.length > 0 && (
+        <span style={{ fontSize: 13, fontWeight: 600, color: C.dim }}>
+          Today · {todaysWorkouts.length} exercise{todaysWorkouts.length === 1 ? "" : "s"}
+        </span>
+      )}
+      {todaysWorkouts.map((w) => (
         <Card key={w.id}>
           <div
             style={{
