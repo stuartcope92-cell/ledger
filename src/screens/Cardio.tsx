@@ -23,6 +23,14 @@ export function Cardio({ profile }: { profile: Profile }) {
     () => allCardio.filter((c) => c.id !== pendingDeleteId),
     [allCardio, pendingDeleteId],
   );
+  // The session list below is today's only, matching the Food and Lift
+  // tabs. Older sessions stay stored and still count toward Progress
+  // trends (the cardio-burn series, calorie budget) and exports — they
+  // just don't pile up under today.
+  const todaysCardio = useMemo(
+    () => cardio.filter((c) => c.date === todayISO()),
+    [cardio],
+  );
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState(blankForm);
   const [editingCardio, setEditingCardio] = useState<CardioSession | null>(null);
@@ -129,10 +137,15 @@ export function Cardio({ profile }: { profile: Profile }) {
       >
         <Plus size={16} /> Log cardio
       </Btn>
-      {cardio.length === 0 && (
-        <Empty icon={Heart} msg="No cardio yet. Log a run, ride or walk." />
+      {todaysCardio.length === 0 && (
+        <Empty icon={Heart} msg="Nothing logged today. Log a run, ride or walk." />
       )}
-      {cardio.map((c) => (
+      {todaysCardio.length > 0 && (
+        <span style={{ fontSize: 13, fontWeight: 600, color: C.dim }}>
+          Today · {todaysCardio.length} session{todaysCardio.length === 1 ? "" : "s"}
+        </span>
+      )}
+      {todaysCardio.map((c) => (
         <Card key={c.id}>
           <div
             style={{
